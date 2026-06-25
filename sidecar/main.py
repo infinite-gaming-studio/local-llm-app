@@ -2,12 +2,14 @@ import asyncio
 import json
 import sys
 import socket
-import signal
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from model_manager import ModelManager
+from engine import SkillEngine
 
 
 class ChatRequest(BaseModel):
@@ -24,12 +26,15 @@ class ModelLoadRequest(BaseModel):
 app_state = {
     "model": None,
     "model_loaded": False,
+    "agent": None,
+    "skill_engine": None,
 }
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("SIDECAR_READY", flush=True)
+    app_state["skill_engine"] = SkillEngine()
     yield
     if app_state["model"] is not None:
         app_state["model"].unload()
@@ -45,8 +50,6 @@ async def health():
 
 @app.post("/model/load")
 async def load_model(req: ModelLoadRequest):
-    from model_manager import ModelManager
-
     if app_state["model"] is not None:
         app_state["model"].unload()
         app_state["model"] = None
@@ -55,6 +58,9 @@ async def load_model(req: ModelLoadRequest):
     manager.load()
     app_state["model"] = manager
     app_state["model_loaded"] = True
+
+    from agent import AgentOrchestrator
+    app_state["agent"] = AgentOrchestrator(manager, app_state["skill_engine"])
     return {"status": "loaded", "model": req.path}
 
 
@@ -64,6 +70,7 @@ async def unload_model():
         app_state["model"].unload()
         app_state["model"] = None
         app_state["model_loaded"] = False
+        app_state["agent"] = None
     return {"status": "unloaded"}
 
 
@@ -80,11 +87,11 @@ async def model_status():
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    if app_state["model"] is None:
+    if app_state["agent"] is None:
         return JSONResponse({"error": "no model loaded"}, status_code=400)
 
-    result = app_state["model"].chat(req.messages)
-    return {"message": {"role": "assistant", "content": result}}
+    content = app_state["agent"].run(req.messages)
+    return {"message": {"role": "assistant", "content": content}}
 
 
 @app.websocket("/chat/stream")
@@ -95,20 +102,24 @@ async def chat_stream(websocket: WebSocket):
         req = json.loads(data)
         messages = req.get("messages", [])
 
-        if app_state["model"] is None:
+        if app_state["agent"] is None:
             await websocket.send_json({"error": "no model loaded"})
             await websocket.close()
             return
 
-        full_content = ""
-        async for token in app_state["model"].chat_stream(messages):
-            full_content += token
-            await websocket.send_json({"token": token})
-
+        full_content = app_state["agent"].run(messages)
+        await websocket.send_json({"token": full_content})
         await websocket.send_json({"done": True, "full_content": full_content})
         await websocket.close()
     except WebSocketDisconnect:
         pass
+
+
+@app.get("/skills")
+async def list_skills():
+    if app_state["skill_engine"] is None:
+        return {"skills": []}
+    return {"skills": app_state["skill_engine"].get_skills_list()}
 
 
 def find_free_port():
