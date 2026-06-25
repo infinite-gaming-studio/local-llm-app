@@ -1,9 +1,11 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 import { SidecarManager } from './sidecar'
+import { ScreenCapture } from './screen-capture'
 
 let mainWindow: BrowserWindow | null = null
 const sidecar = new SidecarManager()
+const screenCapture = new ScreenCapture()
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -80,6 +82,18 @@ async function setupIPC() {
   ipcMain.handle('skills:list', async () => {
     const res = await fetch(`${sidecar.baseUrl}/skills`)
     return res.json()
+  })
+
+  ipcMain.handle('screen:start', () => {
+    screenCapture.start(1)
+  })
+
+  ipcMain.handle('screen:stop', () => {
+    screenCapture.stop()
+  })
+
+  ipcMain.handle('screen:frame', () => {
+    return screenCapture.getLastFrame()
   })
 }
 
