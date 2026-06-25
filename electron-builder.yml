@@ -1,0 +1,25 @@
+appId: com.local-llm.app
+productName: Local LLM App
+directories:
+  buildResources: resources
+  output: release
+files:
+  - dist
+  - dist-electron
+  - sidecar/**/*
+
+extraResources:
+  - from: sidecar/
+    to: sidecar/
+    filter:
+      - "**/*"
+      - "!__pycache__/**"
+
+mac:
+  target: [dmg, zip]
+
+win:
+  target: [nsis]
+
+linux:
+  target: [AppImage, deb]
