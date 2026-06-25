@@ -1,5 +1,5 @@
 import pytest
-from sidecar.model_manager import ModelManager
+from model_manager import ModelManager
 
 
 def test_model_manager_init():

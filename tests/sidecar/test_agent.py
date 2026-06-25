@@ -1,5 +1,5 @@
 import pytest
-from sidecar.agent import AgentOrchestrator
+from agent import AgentOrchestrator
 
 
 class FakeModel:
