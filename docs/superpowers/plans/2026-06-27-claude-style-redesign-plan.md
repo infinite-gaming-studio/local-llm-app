@@ -78,13 +78,14 @@
 - [ ] **Step 1: 安装依赖**
 
 ```bash
-npm i tailwindcss @tailwindcss/vite @phosphor-icons/react @fontsource/geist-sans @fontsource/geist-mono zustand react-markdown remark-gfm rehype-highlight highlight.js motion
+npm i tailwindcss @tailwindcss/vite @tailwindcss/typography @phosphor-icons/react @fontsource/geist-sans @fontsource/geist-mono zustand react-markdown remark-gfm rehype-highlight highlight.js motion
 npm i -D vitest @testing-library/react @testing-library/jest-dom jsdom
 ```
 
 - [ ] **Step 2: 修改 `vite.config.ts`**
 
 ```ts
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import electron from 'vite-plugin-electron'
@@ -127,6 +128,7 @@ import '@testing-library/jest-dom'
 
 ```css
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 @import "@fontsource/geist-sans/400.css";
 @import "@fontsource/geist-sans/500.css";
 @import "@fontsource/geist-sans/600.css";
@@ -1922,8 +1924,9 @@ git add -A && git commit -m "feat: useConversations store"
 ```tsx
 import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Plus, MagnifyingGlass, ChatCircle, PuzzlePiece, Gear, Trash, DotsThree, PencilSimple } from '@phosphor-icons/react'
+import { Plus, MagnifyingGlass, ChatCircle, PuzzlePiece, Gear, Trash, DotsThree, PencilSimple, ArrowsClockwise } from '@phosphor-icons/react'
 import { useConversations } from '../store/useConversations'
+import { useModelDownloads } from '../store/useModelDownloads'
 import { ThemeToggle } from './ThemeToggle'
 import { ConfirmDialog } from './ConfirmDialog'
 
@@ -1941,6 +1944,7 @@ function group(list: { id: string; title: string; updated_at: number }[]) {
 
 export function Sidebar() {
   const { list, loadList, select, remove, rename, currentId, newChat } = useConversations()
+  const activeDownloads = Object.values(useModelDownloads((s) => s.downloads)).filter((d) => d.status === 'downloading')
   const [query, setQuery] = useState('')
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renameVal, setRenameVal] = useState('')
@@ -2005,6 +2009,11 @@ export function Sidebar() {
         <NavLink to="/" end className={navItem}><ChatCircle size={18} /> 对话</NavLink>
         <NavLink to="/skills" className={navItem}><PuzzlePiece size={18} /> Skills</NavLink>
         <NavLink to="/settings" className={navItem}><Gear size={18} /> 设置</NavLink>
+        {activeDownloads.length > 0 && (
+          <NavLink to="/settings" className={navItem}>
+            <ArrowsClockwise size={18} className="animate-spin" /> 下载中 {activeDownloads.length}
+          </NavLink>
+        )}
         <div className="pt-2 mt-1 border-t border-[--color-border]"><ThemeToggle /></div>
       </div>
       {confirmDel && <ConfirmDialog title="删除对话?" confirmText="删除" onConfirm={async () => { await remove(confirmDel); setConfirmDel(null) }} onCancel={() => setConfirmDel(null)} />}
