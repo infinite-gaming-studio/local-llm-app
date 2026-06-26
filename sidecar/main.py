@@ -8,7 +8,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from model_manager import ModelManager
+from model_manager import ModelManager, get_available_models, get_local_models, start_download, get_download_progress
 from engine import SkillEngine
 
 
@@ -120,6 +120,34 @@ async def list_skills():
     if app_state["skill_engine"] is None:
         return {"skills": []}
     return {"skills": app_state["skill_engine"].get_skills_list()}
+
+
+# ── Model marketplace ──────────────────────────────────────────────
+
+
+@app.get("/models/available")
+async def models_available():
+    return {"models": get_available_models()}
+
+
+@app.get("/models/local")
+async def models_local():
+    return {"models": get_local_models()}
+
+
+@app.post("/models/download")
+async def models_download(req: ModelLoadRequest):
+    # reuse ModelLoadRequest fields — only uses path as model_id
+    result = start_download(req.path)
+    return result
+
+
+@app.get("/models/download/progress/{model_id}")
+async def models_download_progress(model_id: str):
+    state = get_download_progress(model_id)
+    if state is None:
+        return {"status": "not_found"}
+    return state
 
 
 def find_free_port():

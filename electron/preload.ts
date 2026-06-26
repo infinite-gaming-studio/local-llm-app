@@ -23,6 +23,10 @@ const api = {
   stopScreenCapture: () => ipcRenderer.invoke('screen:stop'),
   getScreenFrame: () => ipcRenderer.invoke('screen:frame'),
   getSkills: () => ipcRenderer.invoke('skills:list'),
+  getAvailableModels: () => ipcRenderer.invoke('models:available'),
+  getLocalModels: () => ipcRenderer.invoke('models:local'),
+  downloadModel: (modelId: string) => ipcRenderer.invoke('models:download', modelId),
+  getDownloadProgress: (modelId: string) => ipcRenderer.invoke('models:download-progress', modelId),
 }
 
 contextBridge.exposeInMainWorld('llmApp', api)

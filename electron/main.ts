@@ -95,6 +95,30 @@ async function setupIPC() {
   ipcMain.handle('screen:frame', () => {
     return screenCapture.getLastFrame()
   })
+
+  ipcMain.handle('models:available', async () => {
+    const res = await fetch(`${sidecar.baseUrl}/models/available`)
+    return res.json()
+  })
+
+  ipcMain.handle('models:local', async () => {
+    const res = await fetch(`${sidecar.baseUrl}/models/local`)
+    return res.json()
+  })
+
+  ipcMain.handle('models:download', async (_event, modelId: string) => {
+    const res = await fetch(`${sidecar.baseUrl}/models/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: modelId }),
+    })
+    return res.json()
+  })
+
+  ipcMain.handle('models:download-progress', async (_event, modelId: string) => {
+    const res = await fetch(`${sidecar.baseUrl}/models/download/progress/${modelId}`)
+    return res.json()
+  })
 }
 
 app.whenReady().then(async () => {
