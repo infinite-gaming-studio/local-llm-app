@@ -4,6 +4,7 @@ import { SidecarManager } from './sidecar'
 import { ScreenCapture } from './screen-capture'
 
 app.commandLine.appendSwitch('in-process-gpu')
+app.commandLine.appendSwitch('no-sandbox')
 
 let mainWindow: BrowserWindow | null = null
 const sidecar = new SidecarManager()
