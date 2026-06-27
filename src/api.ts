@@ -27,19 +27,22 @@ export interface LocalModel {
   size_bytes: number
 }
 
+export interface ConversationMeta {
+  id: string
+  title: string
+  updated_at: number
+}
+
 export interface Conversation {
   id: string
   title: string
-  created_at: string
-  updated_at: string
-}
-
-export interface ConversationDetail {
-  id: string
-  title: string
-  messages: unknown[]
-  created_at: string
-  updated_at: string
+  created_at: number
+  updated_at: number
+  messages: Array<{
+    role: 'user' | 'assistant'
+    content: string
+    images?: string[]
+  }>
 }
 
 export interface LogEntry {
@@ -69,10 +72,12 @@ declare global {
       getLocalModels: () => Promise<{ models: LocalModel[] }>
       downloadModel: (modelId: string) => Promise<DownloadState>
       getDownloadProgress: (modelId: string) => Promise<DownloadState>
-      listConversations: () => Promise<{ conversations: Conversation[] }>
-      getConversation: (id: string) => Promise<ConversationDetail>
-      saveConversation: (conv: unknown) => Promise<ConversationDetail>
-      renameConversation: (id: string, title: string) => Promise<ConversationDetail>
+      listConversations: () => Promise<{ conversations: ConversationMeta[] }>
+      getConversation: (id: string) => Promise<Conversation>
+      saveConversation: (
+        conv: Partial<Conversation> & { title: string; messages: Conversation['messages'] }
+      ) => Promise<{ id: string }>
+      renameConversation: (id: string, title: string) => Promise<{ status: string }>
       deleteConversation: (id: string) => Promise<{ status: string }>
       onLog: (cb: (e: LogEntry) => void) => () => void
     }
