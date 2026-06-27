@@ -25,6 +25,29 @@ async function createWindow() {
   }
 }
 
+let logBuffer: Array<{ stream: 'stdout' | 'stderr'; line: string; ts: number }> = []
+let rendererReady = false
+
+function sendLogsToRenderer(e: { stream: 'stdout' | 'stderr'; line: string; ts: number }) {
+  if (!rendererReady || !mainWindow || mainWindow.isDestroyed()) {
+    logBuffer.push(e)
+    return
+  }
+  try {
+    mainWindow.webContents.send('sidecar:log', e)
+  } catch {
+    logBuffer.push(e)
+  }
+}
+
+function flushLogBuffer() {
+  if (!mainWindow || mainWindow.isDestroyed() || !rendererReady) return
+  for (const e of logBuffer) {
+    try { mainWindow.webContents.send('sidecar:log', e) } catch {}
+  }
+  logBuffer = []
+}
+
 async function setupIPC() {
   ipcMain.handle('sidecar:health', async () => {
     const res = await fetch(`${sidecar.baseUrl}/health`)
@@ -70,10 +93,10 @@ async function setupIPC() {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data.toString())
       if (data.token) {
-        mainWindow?.webContents.send('chat:token', data.token)
+        try { mainWindow?.webContents.send('chat:token', data.token) } catch {}
       }
       if (data.done) {
-        mainWindow?.webContents.send('chat:done', data.full_content)
+        try { mainWindow?.webContents.send('chat:done', data.full_content) } catch {}
         ws.close()
       }
     }
@@ -170,15 +193,15 @@ app.whenReady().then(async () => {
   await setupIPC()
   await createWindow()
 
-  sidecar.onLog((e) => {
-    try {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('sidecar:log', e)
-      }
-    } catch {
-      // render frame may be disposed during GPU restart; ignore
-    }
+  rendererReady = true
+  flushLogBuffer()
+
+  mainWindow?.webContents.on('did-finish-load', () => {
+    rendererReady = true
+    flushLogBuffer()
   })
+
+  sidecar.onLog((e) => sendLogsToRenderer(e))
 })
 
 app.on('window-all-closed', () => {
