@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Sparkle, Copy, ArrowsClockwise, PencilSimple, Check } from '@phosphor-icons/react'
+import { useConversations } from '../store/useConversations'
 
 interface Msg {
   role: 'user' | 'assistant'
@@ -14,14 +15,13 @@ interface Props {
   msg: Msg
   streaming: boolean
   isLast: boolean
-  onRegenerate: () => void
-  onEdit: (newText: string) => void
 }
 
-export function Message({ msg, streaming, isLast, onRegenerate, onEdit }: Props) {
+export function Message({ msg, streaming, isLast }: Props) {
   const [copied, setCopied] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(msg.content)
+  const { regenerate, editAndResend } = useConversations()
 
   const copy = () => { navigator.clipboard.writeText(msg.content); setCopied(true); setTimeout(() => setCopied(false), 1500) }
 
@@ -50,7 +50,7 @@ export function Message({ msg, streaming, isLast, onRegenerate, onEdit }: Props)
           className="w-[80%] rounded-[14px] px-4 py-3 bg-[--color-surface-2] outline-none ring-2 ring-[--color-accent]/40 resize-none" />
         <div className="flex gap-2 mt-2">
           <button onClick={() => setEditing(false)} className="px-3 py-1 rounded-lg text-[13px] hover:bg-[--color-surface-2]">取消</button>
-          <button onClick={() => { onEdit(draft); setEditing(false) }} className="px-3 py-1 rounded-lg bg-[--color-accent] text-white text-[13px]">保存并重发</button>
+          <button onClick={() => { editAndResend(draft); setEditing(false) }} className="px-3 py-1 rounded-lg bg-[--color-accent] text-white text-[13px]">保存并重发</button>
         </div>
       </div>
     )
@@ -70,7 +70,7 @@ export function Message({ msg, streaming, isLast, onRegenerate, onEdit }: Props)
         {!streaming && (
           <div className="opacity-0 group-hover:opacity-100 flex gap-0.5 mt-1.5">
             <button onClick={copy} className="p-1 rounded hover:bg-[--color-surface-2]">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
-            <button onClick={onRegenerate} className="p-1 rounded hover:bg-[--color-surface-2]"><ArrowsClockwise size={14} /></button>
+            <button onClick={regenerate} className="p-1 rounded hover:bg-[--color-surface-2]"><ArrowsClockwise size={14} /></button>
           </div>
         )}
       </div>

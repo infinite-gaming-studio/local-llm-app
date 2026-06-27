@@ -15,6 +15,8 @@ interface ConvStore {
   renameConversation: (id: string, title: string) => Promise<void>
   send: (text: string, images?: string[]) => Promise<void>
   stop: () => void
+  regenerate: () => Promise<void>
+  editAndResend: (text: string) => Promise<void>
 }
 
 let cleanupStream: (() => void) | null = null
@@ -117,5 +119,32 @@ export const useConversations = create<ConvStore>((set, get) => ({
       set({ activeConv: conv ? { ...conv, messages: msgs } : null })
     }
     set({ streaming: false, streamingContent: '' })
+  },
+
+  regenerate: async () => {
+    if (get().streaming) get().stop()
+    const msgs = get().activeConv?.messages ?? []
+    let lastUser = -1
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'user') { lastUser = i; break }
+    }
+    if (lastUser < 0) return
+    const userMsg = msgs[lastUser]
+    const conv = get().activeConv
+    set({ activeConv: conv ? { ...conv, messages: msgs.slice(0, lastUser) } : null })
+    await get().send(userMsg.content, userMsg.images)
+  },
+
+  editAndResend: async (text: string) => {
+    if (get().streaming) get().stop()
+    const msgs = get().activeConv?.messages ?? []
+    let lastUser = -1
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'user') { lastUser = i; break }
+    }
+    if (lastUser < 0) { await get().send(text); return }
+    const conv = get().activeConv
+    set({ activeConv: conv ? { ...conv, messages: msgs.slice(0, lastUser) } : null })
+    await get().send(text)
   },
 }))

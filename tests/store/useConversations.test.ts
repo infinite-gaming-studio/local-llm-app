@@ -72,4 +72,31 @@ describe('useConversations', () => {
     await useConversations.getState().renameConversation('4', 'new')
     expect(useConversations.getState().activeConv!.title).toBe('new')
   })
+
+  it('regenerate removes last assistant and resends', async () => {
+    const { api } = await import('../../src/api')
+    ;(api.chatStream as any).mockImplementation((_m: any, _onToken: any, onDone: any) => { onDone(); return () => {} })
+    fakeSave.mockResolvedValue({ id: 'saved-id' })
+    fakeList.mockResolvedValue({ conversations: [] })
+    useConversations.setState({
+      activeId: 'c1',
+      activeConv: { id: 'c1', title: 't', messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'hey' }], created_at: 1, updated_at: 1 },
+    })
+    await useConversations.getState().regenerate()
+    expect(useConversations.getState().activeConv!.messages.some((m: any) => m.role === 'assistant')).toBe(true)
+  })
+
+  it('editAndResend replaces last user message and resends', async () => {
+    const { api } = await import('../../src/api')
+    ;(api.chatStream as any).mockImplementation((_m: any, _onToken: any, onDone: any) => { onDone(); return () => {} })
+    fakeSave.mockResolvedValue({ id: 'saved-id' })
+    fakeList.mockResolvedValue({ conversations: [] })
+    useConversations.setState({
+      activeId: 'c1',
+      activeConv: { id: 'c1', title: 't', messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'hey' }], created_at: 1, updated_at: 1 },
+    })
+    await useConversations.getState().editAndResend('edited hi')
+    const lastUser = useConversations.getState().activeConv!.messages.filter((m: any) => m.role === 'user').pop()
+    expect(lastUser?.content).toBe('edited hi')
+  })
 })

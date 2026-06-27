@@ -29,8 +29,6 @@ export function Chat() {
                     msg={{ ...m, content }}
                     streaming={streaming}
                     isLast={i === messages.length - 1}
-                    onRegenerate={() => {}}
-                    onEdit={() => {}}
                   />
                 )
               })}
