@@ -3,5 +3,8 @@ dist/
 dist-electron/
 __pycache__/
 *.pyc
+sidecar/.venv/
+sidecar/.sidecar-port.txt
+sidecar/.data/
 .DS_Store
 .superpowers/sdd/

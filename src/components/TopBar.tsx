@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
-import { SidebarSimple, CaretDown, Check } from '@phosphor-icons/react'
+import { useNavigate } from 'react-router-dom'
+import { SidebarSimple, CaretDown, Check, Warning } from '@phosphor-icons/react'
 import { api, AvailableModel } from '../api'
+import { useConversations } from '../store/useConversations'
 
 interface TopBarProps {
   onToggleSidebar: () => void
 }
 
 export function TopBar({ onToggleSidebar }: TopBarProps) {
+  const nav = useNavigate()
   const [models, setModels] = useState<AvailableModel[]>([])
   const [modelStatus, setModelStatus] = useState<{ loaded: boolean; path?: string }>({ loaded: false })
   const [open, setOpen] = useState(false)
@@ -38,6 +41,8 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
     try {
       await api.loadModel(m.local_path)
       setModelStatus(await api.getModelStatus())
+      // 同步模型模态和加载状态到对话 store（影响 Composer 显示和 Chat 引导）
+      await useConversations.getState().refreshModelStatus()
     } catch (e) { console.error(e) }
     setOperating(null)
     setOpen(false)
@@ -59,15 +64,26 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
       <div className="flex-1" />
 
       <div className="relative" ref={ref}>
-        <button
-          onClick={() => setOpen(!open)}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition-colors"
-          aria-label="选择模型"
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${modelStatus.loaded ? 'bg-emerald-500' : 'bg-red-500'}`} />
-          {currentName}
-          <CaretDown size={10} />
-        </button>
+        {modelStatus.loaded ? (
+          <button
+            onClick={() => setOpen(!open)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition-colors"
+            aria-label="选择模型"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            {currentName}
+            <CaretDown size={10} />
+          </button>
+        ) : (
+          <button
+            onClick={() => nav('/settings')}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] text-[var(--color-accent)] bg-[var(--color-accent-soft)] hover:opacity-80 transition-opacity"
+            aria-label="前往加载模型"
+          >
+            <Warning size={12} weight="fill" />
+            点击加载模型
+          </button>
+        )}
 
         {open && (
           <div className="absolute right-0 top-full mt-1 w-56 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg z-50">

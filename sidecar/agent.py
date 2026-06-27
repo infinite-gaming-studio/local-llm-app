@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Generator, Union
 from tools import get_tool_schemas, execute_tool
 
 
@@ -13,6 +13,25 @@ SYSTEM_PROMPT_BASE = """你是一个有用的 AI 助手。你可以使用以下�
 {{"tool": "tool_name", "args": {{"key": "value"}}}}
 
 在得到工具执行结果后，请基于结果给出最终回复。"""
+
+
+def _extract_text(content: Union[str, list]) -> str:
+    """从 message content 中提取纯文本。
+
+    content 可能是 str（纯文本消息）或 list（多模态消息，
+    如 [{"type":"image_url",...},{"type":"text","text":"..."}]）。
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(item.get("text", ""))
+            elif isinstance(item, str):
+                parts.append(item)
+        return " ".join(parts)
+    return ""
 
 
 class AgentOrchestrator:
@@ -34,7 +53,8 @@ class AgentOrchestrator:
     def run(self, messages: list[dict], stream: bool = False):
         skill_context = ""
         if self.skill_engine:
-            skill_context = self.skill_engine.match_skill(messages[-1]["content"])
+            # 多模态消息的 content 是 list，需先提取纯文本
+            skill_context = self.skill_engine.match_skill(_extract_text(messages[-1]["content"]))
 
         system_prompt = self.build_system_prompt(skill_context)
         full_messages = [{"role": "system", "content": system_prompt}] + messages
@@ -65,3 +85,50 @@ class AgentOrchestrator:
 
             return result
         return "已到达工具调用上限，请简化请求。"
+
+    async def run_stream(self, messages: list[dict]) -> AsyncGenerator[dict, None]:
+        """流式运行 agent，逐 token 产出事件。
+
+        事件类型:
+        - {"type": "token", "content": "..."}  — 文本 token
+        - {"type": "clear"}                    — 清除当前内容（工具调用前）
+        - {"type": "tool", "tool": "..."}      — 工具调用开始
+        - {"type": "done", "content": "..."}   — 完成
+        """
+        skill_context = ""
+        if self.skill_engine:
+            # 多模态消息的 content 是 list，需先提取纯文本
+            skill_context = self.skill_engine.match_skill(_extract_text(messages[-1]["content"]))
+
+        system_prompt = self.build_system_prompt(skill_context)
+        full_messages = [{"role": "system", "content": system_prompt}] + messages
+
+        for _ in range(self.max_tool_rounds):
+            accumulated = ""
+            async for token in self.model.chat_stream(full_messages):
+                accumulated += token
+                yield {"type": "token", "content": token}
+
+            # 检查是否为工具调用
+            json_match = re.search(r'\{"tool":\s*"[^"]+"', accumulated)
+            if json_match:
+                try:
+                    start = json_match.start()
+                    end = accumulated.index("}", start) + 1
+                    tool_call = json.loads(accumulated[start:end])
+                    if "tool" in tool_call and "args" in tool_call:
+                        # 通知前端清除已显示的工具调用 JSON
+                        yield {"type": "clear"}
+                        yield {"type": "tool", "tool": tool_call["tool"]}
+
+                        tool_result = execute_tool(tool_call["tool"], tool_call["args"])
+                        full_messages.append({"role": "assistant", "content": accumulated})
+                        full_messages.append({"role": "tool", "content": str(tool_result)})
+                        continue
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+            yield {"type": "done", "content": accumulated}
+            return
+
+        yield {"type": "done", "content": "已到达工具调用上限，请简化请求。"}

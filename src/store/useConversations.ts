@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { api, ConversationMeta, Conversation } from '../api'
+import { api, ConversationMeta, Conversation, Modality } from '../api'
 
 interface ConvStore {
   conversations: ConversationMeta[]
@@ -8,7 +8,11 @@ interface ConvStore {
   loading: boolean
   streaming: boolean
   streamingContent: string
+  toolActive: string | null
+  activeModalities: Modality[]
+  modelLoaded: boolean
   init: () => Promise<void>
+  refreshModelStatus: () => Promise<void>
   createConversation: () => Promise<string>
   selectConversation: (id: string) => Promise<void>
   deleteConversation: (id: string) => Promise<void>
@@ -28,6 +32,9 @@ export const useConversations = create<ConvStore>((set, get) => ({
   loading: false,
   streaming: false,
   streamingContent: '',
+  toolActive: null,
+  activeModalities: ['text'],
+  modelLoaded: false,
 
   init: async () => {
     set({ loading: true })
@@ -35,10 +42,32 @@ export const useConversations = create<ConvStore>((set, get) => ({
     set({ conversations: d.conversations, loading: false })
   },
 
+  refreshModelStatus: async () => {
+    try {
+      const s = await api.getModelStatus()
+      set({
+        activeModalities: s.modalities?.length ? s.modalities : ['text'],
+        modelLoaded: !!s.loaded,
+      })
+    } catch {
+      // 拉取失败保持现状
+    }
+  },
+
   createConversation: async () => {
     if (get().streaming) get().stop()
+    // 若当前已在一个空白新对话上（无消息），直接复用，避免重复创建
+    const cur = get().activeConv
+    if (cur && cur.messages.length === 0) {
+      return cur.id
+    }
     const saved = await api.saveConversation({ title: '新对话', messages: [] })
-    set({ activeId: saved.id })
+    set({
+      activeId: saved.id,
+      activeConv: { id: saved.id, title: '新对话', messages: [], created_at: Date.now(), updated_at: Date.now() },
+      streamingContent: '',
+      toolActive: null,
+    })
     await get().init()
     return saved.id
   },
@@ -89,6 +118,7 @@ export const useConversations = create<ConvStore>((set, get) => ({
       (token) => {
         set((s) => ({
           streamingContent: s.streamingContent + token,
+          toolActive: null,
         }))
       },
       async () => {
@@ -101,9 +131,15 @@ export const useConversations = create<ConvStore>((set, get) => ({
           title,
           messages: msgs,
         })
-        set({ streaming: false, streamingContent: '', activeConv: { ...conv!, messages: msgs, id: saved.id } })
+        set({ streaming: false, streamingContent: '', toolActive: null, activeConv: { ...conv!, messages: msgs, id: saved.id } })
         if (!get().activeId) set({ activeId: saved.id })
         await get().init()
+      },
+      () => {
+        set({ streamingContent: '' })
+      },
+      (tool) => {
+        set({ toolActive: tool })
       },
     )
   },
@@ -118,7 +154,7 @@ export const useConversations = create<ConvStore>((set, get) => ({
       msgs[msgs.length - 1] = { role: 'assistant', content }
       set({ activeConv: conv ? { ...conv, messages: msgs } : null })
     }
-    set({ streaming: false, streamingContent: '' })
+    set({ streaming: false, streamingContent: '', toolActive: null })
   },
 
   regenerate: async () => {

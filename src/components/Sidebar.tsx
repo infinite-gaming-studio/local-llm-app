@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Plus, MagnifyingGlass, ChatCircle, PuzzlePiece, Gear, Trash, PencilSimple, ArrowsClockwise } from '@phosphor-icons/react'
+import { Plus, MagnifyingGlass, ChatCircle, PuzzlePiece, Gear, Trash, PencilSimple } from '@phosphor-icons/react'
 import { useConversations } from '../store/useConversations'
-import { useModelDownloads } from '../store/useModelDownloads'
 import { ThemeToggle } from './ThemeToggle'
 import { ConfirmDialog } from './ConfirmDialog'
 
@@ -31,8 +30,6 @@ function group(list: { id: string; title: string; updated_at: number }[]) {
 
 export function Sidebar() {
   const { conversations, init, selectConversation, deleteConversation, renameConversation, activeId, createConversation } = useConversations()
-  const { downloads } = useModelDownloads()
-  const activeDownloadList = Object.values(downloads).filter((d) => d.status === 'downloading')
   const [query, setQuery] = useState('')
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renameVal, setRenameVal] = useState('')
@@ -107,20 +104,6 @@ export function Sidebar() {
         <NavLink to="/" end className={navItem}><ChatCircle size={18} /> 对话</NavLink>
         <NavLink to="/skills" className={navItem}><PuzzlePiece size={18} /> 训练技能</NavLink>
         <NavLink to="/settings" className={navItem}><Gear size={18} /> 设置</NavLink>
-        {activeDownloadList.length > 0 && (
-          <div className="flex flex-col gap-0.5">
-            <NavLink to="/settings" className={navItem}>
-              <ArrowsClockwise size={18} className={motionOk ? 'animate-spin' : ''} /> 下载中 {activeDownloadList.length}
-            </NavLink>
-            <div className="px-3 pb-1 space-y-0.5">
-              {activeDownloadList.map((d, i) => (
-                <div key={i} className="h-1 rounded-full bg-[var(--color-border)] overflow-hidden">
-                  <div className="h-full bg-[var(--color-accent)] rounded-full transition-[width] duration-300" style={{ width: `${Math.round((d.progress || 0) * 100)}%` }} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
         <div className="pt-2 mt-1 border-t border-[var(--color-border)]"><ThemeToggle /></div>
       </div>
       {confirmDel && <ConfirmDialog title="删除对话?" confirmText="删除" onConfirm={async () => { await deleteConversation(confirmDel); setConfirmDel(null) }} onCancel={() => setConfirmDel(null)} />}

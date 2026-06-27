@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
-import { api, AvailableModel, LocalModel, SidecarDiagnostics } from '../api'
-import { useModelDownloads } from '../store/useModelDownloads'
-import { Trash, Key } from '@phosphor-icons/react'
+import { useState, useEffect, useRef } from 'react'
+import { api, AvailableModel, LocalModel, SidecarDiagnostics, ImportResult, ModelMetadata } from '../api'
+import { Trash, Key, Copy, Upload, Check, FolderOpen, PencilSimple, Terminal } from '@phosphor-icons/react'
+import { ModelMetadataModal } from '../components/ModelMetadataModal'
+import { useConversations } from '../store/useConversations'
+import { useLogs } from '../store/useLogs'
 
 const MB = 1024 * 1024
 const GB = 1024 * MB
 function formatSize(b: number) { return b >= GB ? `${(b / GB).toFixed(1)} GB` : b >= MB ? `${Math.round(b / MB)} MB` : `${b} B` }
-function pct(p: number) { return `${Math.round(p * 100)}%` }
 
 export function Settings() {
   const [modelStatus, setModelStatus] = useState<{ loaded: boolean; path?: string }>({ loaded: false })
@@ -14,7 +15,11 @@ export function Settings() {
   const [localModels, setLocalModels] = useState<LocalModel[]>([])
   const [loading, setLoading] = useState(true)
   const [operating, setOperating] = useState<string | null>(null)
-  const { downloads, startDownload, clearError } = useModelDownloads()
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [importing, setImporting] = useState<string | null>(null)
+  const [importMsg, setImportMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null)
+  // metadata modal: {modelId, isNew, initial} | null
+  const [metaModal, setMetaModal] = useState<{ modelId: string; isNew: boolean; initial?: Partial<ModelMetadata> } | null>(null)
 
   const [error, setError] = useState<string | null>(null)
   const [diag, setDiag] = useState<SidecarDiagnostics | null>(null)
@@ -61,18 +66,128 @@ export function Settings() {
     }
   }, [])
 
-  // Reload model list when any download completes
-  const completedIds = Object.entries(downloads)
-    .filter(([, d]) => d.status === 'completed')
-    .map(([id]) => id)
-  useEffect(() => {
-    if (completedIds.length > 0) {
-      loadData(false)
+  const handleLoad = async (path: string, options?: { ctx_size?: number; gpu_layers?: number }) => {
+    setOperating(path)
+    try {
+      const result = await api.loadModel(path, options)
+      if (result.status === 'error') {
+        setError(result.error || '模型加载失败')
+      } else {
+        setError(null)
+        setModelStatus(await api.getModelStatus())
+        // 同步当前模型模态到对话 store
+        await useConversations.getState().refreshModelStatus()
+      }
+    } catch (e) {
+      console.error(e)
+      setError(e instanceof Error ? e.message : '模型加载失败')
     }
-  }, [completedIds.join(',')])
+    setOperating(null)
+  }
+  const handleUnload = async () => {
+    setOperating('unload')
+    try {
+      await api.unloadModel()
+      setModelStatus({ loaded: false })
+      await useConversations.getState().refreshModelStatus()
+    } catch (e) { console.error(e) }
+    setOperating(null)
+  }
 
-  const handleLoad = async (path: string) => { setOperating(path); try { await api.loadModel(path); setModelStatus(await api.getModelStatus()) } catch (e) { console.error(e) }; setOperating(null) }
-  const handleUnload = async () => { setOperating('unload'); try { await api.unloadModel(); setModelStatus({ loaded: false }) } catch (e) { console.error(e) }; setOperating(null) }
+  const handleCopyLink = async (model: AvailableModel) => {
+    try {
+      await navigator.clipboard.writeText(model.url)
+      setCopiedId(model.id)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const copyMmprojLink = async (model: AvailableModel) => {
+    if (!model.mmproj_url) return
+    try {
+      await navigator.clipboard.writeText(model.mmproj_url)
+      setCopiedId(`mmproj:${model.id}`)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleImportMmproj = async (modelId: string) => {
+    setImporting(`mmproj:${modelId}`)
+    setImportMsg(null)
+    try {
+      const result: ImportResult = await api.importMmproj(modelId)
+      if (result.status === 'canceled') {
+        // 用户取消
+      } else if (result.status === 'imported') {
+        setImportMsg({
+          id: `mmproj:${modelId}`,
+          text: `mmproj 导入成功 (${result.action === 'moved' ? '移动' : '复制'}${result.size_bytes ? `, ${formatSize(result.size_bytes)}` : ''})`,
+          ok: true,
+        })
+        await loadData(false)
+      } else {
+        setImportMsg({ id: `mmproj:${modelId}`, text: result.error || 'mmproj 导入失败', ok: false })
+      }
+    } catch (e) {
+      setImportMsg({ id: `mmproj:${modelId}`, text: String(e), ok: false })
+    }
+    setImporting(null)
+    if (importMsg) setTimeout(() => setImportMsg(null), 4000)
+  }
+
+  const handleImport = async (modelId: string | null) => {
+    setImporting(modelId || '__custom__')
+    setImportMsg(null)
+    try {
+      const result: ImportResult = await api.importModel(modelId)
+      if (result.status === 'canceled') {
+        // 用户取消，不显示消息
+      } else if (result.status === 'imported' && result.model_id) {
+        setImportMsg({
+          id: modelId || '__custom__',
+          text: `导入成功 (${result.action === 'moved' ? '移动' : '复制'}, ${formatSize(result.size_bytes || 0)})`,
+          ok: true,
+        })
+        await loadData(false)
+        // 导入成功后弹出 metadata 编辑表单
+        setMetaModal({
+          modelId: result.model_id,
+          isNew: true,
+          initial: result.metadata,
+        })
+      } else {
+        setImportMsg({ id: modelId || '__custom__', text: result.error || '导入失败', ok: false })
+      }
+    } catch (e) {
+      setImportMsg({ id: modelId || '__custom__', text: String(e), ok: false })
+    }
+    setImporting(null)
+    if (importMsg) setTimeout(() => setImportMsg(null), 4000)
+  }
+
+  const handleEditMetadata = (model: LocalModel) => {
+    setMetaModal({
+      modelId: model.id,
+      isNew: false,
+      initial: {
+        display_name: model.name,
+        description: model.description,
+        params: model.params,
+        language: model.language,
+        requirements: model.requirements,
+        ctx_size: model.ctx_size,
+        gpu_layers: model.gpu_layers,
+      },
+    })
+  }
+
+  const handleMetadataSaved = async () => {
+    await loadData(false)
+  }
 
   return (
     <div className="h-full overflow-auto px-8 py-8 max-w-3xl mx-auto">
@@ -104,7 +219,20 @@ export function Settings() {
       </details>
 
       <h3 className="text-[17px] font-semibold mb-1">推荐模型</h3>
-      <p className="text-[13px] text-[var(--color-text-muted)] mb-4">选择适合你设备的模型,下载后即可使用</p>
+      <p className="text-[13px] text-[var(--color-text-muted)] mb-3">选择适合你设备的模型,复制链接下载后导入即可使用</p>
+
+      {/* 操作引导 */}
+      <div className="mb-4 px-4 py-3 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[13px] text-[var(--color-text-muted)] leading-relaxed">
+        <span className="font-medium text-[var(--color-text)]">使用步骤:</span>
+        <br />
+        1. 点击「复制链接」获取模型下载地址,用浏览器或下载工具下载 .gguf 文件
+        <br />
+        2. 下载完成后点击「导入模型」选择对应的 .gguf 文件
+        <br />
+        3. 导入成功后点击「加载使用」即可开始对话
+        <br />
+        <span className="text-amber-500">多模态模型(带「多模态」标签)需额外下载并导入 mmproj 视觉投影文件,否则图片分析不可用</span>
+      </div>
 
       {loading ? (
         <p className="text-[var(--color-text-muted)] p-8 text-center">加载中…</p>
@@ -141,10 +269,12 @@ export function Settings() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {models.map((m) => {
-            const dl = downloads[m.id]
-            const isDl = dl?.status === 'downloading'
-            const isDone = m.downloaded || dl?.status === 'completed'
+            const isDone = m.downloaded
             const isOp = m.local_path ? operating === m.local_path : operating === m.id
+            const isImporting = importing === m.id
+            const isImportingMmproj = importing === `mmproj:${m.id}`
+            const msg = importMsg && (importMsg.id === m.id || importMsg.id === `mmproj:${m.id}`) ? importMsg : null
+            const isVl = !!m.mmproj_url
             return (
               <div key={m.id} className={`p-4 rounded-xl border flex flex-col gap-2 ${isDone ? 'border-emerald-300/60 bg-emerald-50/30 dark:bg-emerald-900/10' : 'border-[var(--color-border)]'}`}>
                 <div className="font-semibold text-[15px]">{m.name}</div>
@@ -154,28 +284,42 @@ export function Settings() {
                   <span className="px-2 py-0.5 rounded bg-[var(--color-surface-2)]">{formatSize(m.size_bytes)}</span>
                   <span className="px-2 py-0.5 rounded bg-[var(--color-accent-soft)] text-[var(--color-accent)]">{m.requirements}</span>
                   <span className="px-2 py-0.5 rounded bg-[var(--color-surface-2)]">{m.language}</span>
+                  {isVl && <span className="px-2 py-0.5 rounded bg-[var(--color-accent-soft)] text-[var(--color-accent)]">多模态</span>}
                 </div>
-                {isDl && dl && (
-                  <div className="mt-1">
-                    <div className="h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
-                      <div className="h-full bg-[var(--color-accent)] rounded-full transition-[width] duration-300" style={{ width: pct(dl.progress) }} />
-                    </div>
-                    <div className="text-[12px] text-[var(--color-text-muted)] mt-1 flex justify-between">
-                      {dl.retrying ? <span className="text-amber-500">重试中 ({dl.retrying})</span> : <span />}
-                      {pct(dl.progress)}
-                    </div>
+                {isVl && (
+                  <div className="text-[12px] flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]">
+                    {m.mmproj_downloaded ? (
+                      <span className="flex items-center gap-1 text-emerald-500 font-medium">
+                        <Check size={13} /> mmproj 视觉投影已导入
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-amber-500 flex items-center gap-1">
+                          ⚠ 多模态需额外导入 mmproj 视觉投影
+                        </span>
+                        <div className="ml-auto flex gap-1.5">
+                          <button onClick={() => copyMmprojLink(m)}
+                            className="px-2 py-1 rounded border border-[var(--color-border)] text-[11px] hover:bg-[var(--color-surface-2)] transition-colors flex items-center gap-1">
+                            {copiedId === `mmproj:${m.id}` ? <><Check size={11} /> 已复制</> : <><Copy size={11} /> mmproj 链接</>}
+                          </button>
+                          <button onClick={() => handleImportMmproj(m.id)} disabled={isImportingMmproj}
+                            className="px-2 py-1 rounded bg-[var(--color-accent)] text-white text-[11px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center gap-1">
+                            {isImportingMmproj ? '导入中…' : <><Upload size={11} /> 导入 mmproj</>}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
-                {dl?.status === 'error' && (
-                  <div className="text-[12px] text-red-500 flex items-start justify-between gap-2">
-                    <span>下载失败: {dl.error}</span>
-                    <button onClick={() => clearError(m.id)} className="shrink-0 underline hover:opacity-70">忽略</button>
+                {msg && (
+                  <div className={`text-[12px] ${msg.ok ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {msg.text}
                   </div>
                 )}
-                <div className="mt-auto">
+                <div className="mt-auto flex gap-2">
                   {isDone ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => handleLoad(m.local_path || dl?.path || m.id)} disabled={isOp}
+                    <>
+                      <button onClick={() => handleLoad(m.local_path!)} disabled={isOp}
                         className="flex-1 py-2 rounded-lg bg-emerald-500 text-white text-[13px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity">
                         {isOp ? '加载中…' : '加载使用'}
                       </button>
@@ -183,14 +327,18 @@ export function Settings() {
                         className="px-3 py-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors">
                         <Trash size={16} />
                       </button>
-                    </div>
-                  ) : isDl ? (
-                    <div className="w-full py-2 text-center rounded-lg bg-[var(--color-surface-2)] text-[13px] text-[var(--color-text-muted)] border border-[var(--color-border)]">下载中…</div>
+                    </>
                   ) : (
-                    <button onClick={() => startDownload(m.id)} disabled={isOp}
-                      className="w-full py-2 rounded-lg bg-[var(--color-accent)] text-white text-[13px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity">
-                      {isOp ? '准备中…' : '下载'}
-                    </button>
+                    <>
+                      <button onClick={() => handleCopyLink(m)}
+                        className="flex-1 py-2 rounded-lg border border-[var(--color-border)] text-[13px] font-medium hover:bg-[var(--color-surface)] transition-colors flex items-center justify-center gap-1.5">
+                        {copiedId === m.id ? <><Check size={15} /> 已复制</> : <><Copy size={15} /> 复制链接</>}
+                      </button>
+                      <button onClick={() => handleImport(m.id)} disabled={isImporting}
+                        className="flex-1 py-2 rounded-lg bg-[var(--color-accent)] text-white text-[13px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5">
+                        {isImporting ? '选择文件…' : <><Upload size={15} /> 导入模型</>}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -199,33 +347,172 @@ export function Settings() {
         </div>
       )}
 
+      {/* 导入自定义模型 */}
+      <div className="mt-5 p-4 rounded-xl border border-dashed border-[var(--color-border)]">
+        <div className="flex items-center gap-2 mb-2">
+          <FolderOpen size={16} className="text-[var(--color-text-muted)]" />
+          <span className="text-[14px] font-medium">导入自定义模型</span>
+        </div>
+        <p className="text-[12px] text-[var(--color-text-muted)] mb-3">选择已下载的 .gguf 文件导入到模型目录,导入后可在下方「本地模型」中加载</p>
+        <button
+          onClick={() => handleImport(null)}
+          disabled={importing === '__custom__'}
+          className="w-full py-2 rounded-lg border border-[var(--color-border)] text-[13px] font-medium hover:bg-[var(--color-surface)] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50">
+          {importing === '__custom__' ? '选择文件…' : <><Upload size={15} /> 选择 .gguf 文件导入</>}
+        </button>
+        {importMsg && importMsg.id === '__custom__' && (
+          <div className={`text-[12px] mt-2 ${importMsg.ok ? 'text-emerald-500' : 'text-red-500'}`}>
+            {importMsg.text}
+          </div>
+        )}
+      </div>
+
       {localModels.filter((lm) => !models.some((m) => m.id === lm.id)).length > 0 && (
         <>
           <h3 className="text-[17px] font-semibold mt-6 mb-3">本地模型</h3>
           <div className="flex flex-col gap-2">
             {localModels.filter((lm) => !models.some((m) => m.id === lm.id)).map((lm) => (
-              <div key={lm.path} className="flex items-center gap-3 px-4 py-2.5 border border-[var(--color-border)] rounded-lg">
-                <span className="flex-1 text-[14px] font-medium">{lm.name}</span>
-                <span className="text-[12px] text-[var(--color-text-muted)]">{formatSize(lm.size_bytes)}</span>
-                <button onClick={() => handleLoad(lm.path)} disabled={operating === lm.path}
-                  className="px-4 py-1.5 rounded-lg bg-[var(--color-accent)] text-white text-[13px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity">
-                  {operating === lm.path ? '加载中…' : '加载'}
-                </button>
+              <div key={lm.path} className="px-4 py-3 border border-[var(--color-border)] rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[14px] font-medium truncate">{lm.name}</div>
+                    {lm.description && (
+                      <div className="text-[12px] text-[var(--color-text-muted)] truncate mt-0.5">{lm.description}</div>
+                    )}
+                  </div>
+                  <span className="text-[12px] text-[var(--color-text-muted)] shrink-0">{formatSize(lm.size_bytes)}</span>
+                </div>
+                <div className="flex gap-1.5 flex-wrap text-[11px] mt-2">
+                  {lm.params && <span className="px-1.5 py-0.5 rounded bg-[var(--color-surface-2)]">{lm.params}</span>}
+                  {lm.ctx_size && <span className="px-1.5 py-0.5 rounded bg-[var(--color-surface-2)]">ctx {lm.ctx_size >= 1024 ? `${lm.ctx_size / 1024}K` : lm.ctx_size}</span>}
+                  <span className="px-1.5 py-0.5 rounded bg-[var(--color-surface-2)]">GPU {lm.gpu_layers === -1 ? '全部' : lm.gpu_layers === 0 ? '关闭' : lm.gpu_layers}</span>
+                  {lm.modalities && lm.modalities.includes('image') && (
+                    <span className="px-1.5 py-0.5 rounded bg-[var(--color-accent-soft)] text-[var(--color-accent)]">多模态</span>
+                  )}
+                  {lm.modalities?.includes('image') && lm.has_mmproj && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                      <Check size={10} /> mmproj
+                    </span>
+                  )}
+                  {lm.language && <span className="px-1.5 py-0.5 rounded bg-[var(--color-surface-2)]">{lm.language}</span>}
+                </div>
+                {lm.modalities?.includes('image') && !lm.has_mmproj && (
+                  <div className="text-[12px] flex items-center gap-2 px-2.5 py-1.5 mt-2 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800">
+                    <span className="text-amber-600 dark:text-amber-400">⚠ 未导入 mmproj 视觉投影，图片分析不可用</span>
+                    <button
+                      onClick={() => handleImportMmproj(lm.id)}
+                      disabled={importing === `mmproj:${lm.id}`}
+                      className="ml-auto px-2 py-1 rounded bg-[var(--color-accent)] text-white text-[11px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center gap-1">
+                      {importing === `mmproj:${lm.id}` ? '导入中…' : <><Upload size={11} /> 导入 mmproj</>}
+                    </button>
+                  </div>
+                )}
+                <div className="flex gap-2 mt-2.5">
+                  <button
+                    onClick={() => handleLoad(lm.path, { ctx_size: lm.ctx_size, gpu_layers: lm.gpu_layers })}
+                    disabled={operating === lm.path}
+                    className="flex-1 py-1.5 rounded-lg bg-[var(--color-accent)] text-white text-[12px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity">
+                    {operating === lm.path ? '加载中…' : '加载使用'}
+                  </button>
+                  <button
+                    onClick={() => handleEditMetadata(lm)}
+                    className="px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] transition-colors flex items-center gap-1 text-[12px]">
+                    <PencilSimple size={13} /> 编辑
+                  </button>
+                  <button
+                    onClick={async () => { await api.deleteLocalModel(lm.id); loadData() }}
+                    className="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors">
+                    <Trash size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </>
       )}
 
+      {metaModal && (
+        <ModelMetadataModal
+          modelId={metaModal.modelId}
+          isNew={metaModal.isNew}
+          initial={metaModal.initial}
+          onClose={() => setMetaModal(null)}
+          onSaved={handleMetadataSaved}
+        />
+      )}
+
       <details className="mt-7">
         <summary className="cursor-pointer text-[14px] text-[var(--color-text-muted)]">高级设置:自定义模型路径</summary>
         <CustomPathInput onLoad={handleLoad} operating={operating} />
+      </details>
+
+      <details className="mt-4 mb-4">
+        <summary className="cursor-pointer text-[14px] text-[var(--color-text-muted)] flex items-center gap-1.5">
+          <Terminal size={14} /> 后端日志
+        </summary>
+        <BackendLogPanel />
       </details>
     </div>
   )
 }
 
-function CustomPathInput({ onLoad, operating }: { onLoad: (p: string) => void; operating: string | null }) {
+const ERROR_RE = /error|traceback/i
+
+function BackendLogPanel() {
+  const entries = useLogs((s) => s.entries)
+  const clear = useLogs((s) => s.clear)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [follow, setFollow] = useState(true)
+
+  useEffect(() => {
+    if (follow && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [entries, follow])
+
+  return (
+    <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+      <div className="flex items-center justify-between px-3 h-8 text-[12px] border-b border-[var(--color-border)]">
+        <span className="text-[var(--color-text-muted)]">{entries.length} 条</span>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1 text-[var(--color-text-muted)] cursor-pointer">
+            <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} className="w-3 h-3" />
+            跟随
+          </label>
+          <button onClick={clear} className="p-1 rounded hover:bg-[var(--color-surface-2)]" aria-label="清空">
+            <Trash size={13} />
+          </button>
+        </div>
+      </div>
+      <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          const el = e.currentTarget
+          const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20
+          setFollow(atBottom)
+        }}
+        className="overflow-auto px-3 py-2 font-mono text-[12px] leading-relaxed h-[280px]"
+      >
+        {entries.length === 0 ? (
+          <div className="text-[var(--color-text-muted)] py-4">暂无日志，sidecar 启动后此处显示模型调用输出</div>
+        ) : (
+          entries.map((e, i) => {
+            const t = new Date(e.ts)
+            const ts = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}:${String(t.getSeconds()).padStart(2, '0')}`
+            const err = e.stream === 'stderr' || ERROR_RE.test(e.line)
+            return (
+              <div key={i} className={err ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}>
+                <span className="opacity-60">{ts}</span> {e.line}
+              </div>
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CustomPathInput({ onLoad, operating }: { onLoad: (p: string, options?: { ctx_size?: number; gpu_layers?: number }) => void; operating: string | null }) {
   const [p, setP] = useState('')
   return (
     <div className="mt-3 flex gap-2">

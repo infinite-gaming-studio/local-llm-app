@@ -5,6 +5,10 @@ import re
 from pathlib import Path
 
 
+def _data_dir() -> str:
+    return os.environ.get("LLM_APP_DATA_DIR", os.path.expanduser("~/.llm-app"))
+
+
 class Skill:
     def __init__(self, name: str, description: str, instructions: str, tools: list[dict] | None = None):
         self.name = name
@@ -18,7 +22,7 @@ class Skill:
 
 class SkillEngine:
     def __init__(self, skills_dir: str | None = None):
-        self.skills_dir = skills_dir or os.path.expanduser("~/.llm-app/skills")
+        self.skills_dir = skills_dir or os.path.join(_data_dir(), "skills")
         self.skills: list[Skill] = []
         self._load_skills()
 

@@ -3,9 +3,13 @@ import json, os, uuid, time
 from pathlib import Path
 
 
+def _data_dir() -> str:
+    return os.environ.get("LLM_APP_DATA_DIR", os.path.expanduser("~/.llm-app"))
+
+
 class ConversationStore:
     def __init__(self, base_dir: str | None = None):
-        self.dir = Path(base_dir or os.path.expanduser("~/.llm-app/conversations"))
+        self.dir = Path(base_dir or os.path.join(_data_dir(), "conversations"))
         self.dir.mkdir(parents=True, exist_ok=True)
 
     def list_conversations(self) -> list[dict]:

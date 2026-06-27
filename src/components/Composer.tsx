@@ -1,20 +1,25 @@
 import { useState, useRef, useEffect } from 'react'
 import { Image as ImageIcon, ArrowUp, Stop, X } from '@phosphor-icons/react'
+import { useConversations } from '../store/useConversations'
 
 interface ComposerProps {
   onSend: (text: string, images?: string[]) => void
   onStop: () => void
   streaming: boolean
+  disabled?: boolean
 }
 
-export function Composer({ onSend, onStop, streaming }: ComposerProps) {
+export function Composer({ onSend, onStop, streaming, disabled }: ComposerProps) {
   const [text, setText] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [pendingImages, setPendingImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const activeModalities = useConversations((s) => s.activeModalities)
+  const supportsImage = activeModalities.includes('image')
 
   useEffect(() => {
+    if (!supportsImage) return
     const onPaste = (e: ClipboardEvent) => {
       for (const item of Array.from(e.clipboardData?.items ?? [])) {
         if (item.type.startsWith('image/')) {
@@ -28,7 +33,7 @@ export function Composer({ onSend, onStop, streaming }: ComposerProps) {
     }
     document.addEventListener('paste', onPaste)
     return () => document.removeEventListener('paste', onPaste)
-  }, [])
+  }, [supportsImage])
 
   useEffect(() => {
     const ta = taRef.current
@@ -38,17 +43,19 @@ export function Composer({ onSend, onStop, streaming }: ComposerProps) {
   }, [text])
 
   const send = () => {
-    if ((!text.trim() && pendingImages.length === 0) || streaming) return
+    if (disabled || (!text.trim() && pendingImages.length === 0) || streaming) return
     onSend(text.trim(), pendingImages.length ? pendingImages : undefined)
     setText('')
     setPendingImages([])
   }
 
   const onKey = (e: React.KeyboardEvent) => {
+    if (disabled) return
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
   }
 
   const addFiles = (files: FileList | File[]) => {
+    if (!supportsImage || disabled) return
     Array.from(files).forEach((f) => {
       if (!f.type.startsWith('image/')) return
       const r = new FileReader()
@@ -57,12 +64,12 @@ export function Composer({ onSend, onStop, streaming }: ComposerProps) {
     })
   }
 
-  const canSend = (text.trim().length > 0 || pendingImages.length > 0) && !streaming
+  const canSend = !disabled && (text.trim().length > 0 || pendingImages.length > 0) && !streaming
 
   return (
-    <div className="px-4 pb-4 pt-2 shrink-0" onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files) }}>
+    <div className="px-4 pb-4 pt-2 shrink-0" onDragOver={supportsImage ? (e) => { e.preventDefault(); setDragOver(true) } : undefined}
+      onDragLeave={supportsImage ? () => setDragOver(false) : undefined}
+      onDrop={supportsImage ? (e) => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files) } : undefined}>
       {pendingImages.length > 0 && (
         <div className="flex gap-2 mb-2 flex-wrap">
           {pendingImages.map((img, i) => (
@@ -77,16 +84,22 @@ export function Composer({ onSend, onStop, streaming }: ComposerProps) {
         </div>
       )}
       <div className={`flex items-end gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 transition-colors ${dragOver ? 'ring-2 ring-[var(--color-accent)]/40' : ''}`}>
-        <input ref={fileInputRef} type="file" accept="image/*" hidden multiple
-          onChange={(e) => e.target.files && addFiles(e.target.files)} />
-        <button onClick={() => fileInputRef.current?.click()} disabled={streaming}
-          className="p-2 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)] transition-colors disabled:opacity-40"
-          aria-label="添加图片">
-          <ImageIcon size={20} />
-        </button>
+        {supportsImage && (
+          <>
+            <input ref={fileInputRef} type="file" accept="image/*" hidden multiple
+              onChange={(e) => e.target.files && addFiles(e.target.files)} />
+            <button onClick={() => fileInputRef.current?.click()} disabled={streaming || disabled}
+              className="p-2 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)] transition-colors disabled:opacity-40"
+              aria-label="添加图片">
+              <ImageIcon size={20} />
+            </button>
+          </>
+        )}
         <textarea ref={taRef} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKey}
-          placeholder="发送消息…  (Enter 发送,Shift+Enter 换行)" rows={1}
-          className="flex-1 resize-none bg-transparent outline-none text-[15px] leading-relaxed py-1.5 max-h-[200px]" />
+          disabled={disabled}
+          placeholder={disabled ? '请先加载模型…' : (supportsImage ? '发送消息…  (Enter 发送,Shift+Enter 换行,可粘贴/拖入图片)' : '发送消息…  (Enter 发送,Shift+Enter 换行)')}
+          rows={1}
+          className="flex-1 resize-none bg-transparent outline-none text-[15px] leading-relaxed py-1.5 max-h-[200px] disabled:opacity-50" />
         {streaming ? (
           <button onClick={onStop} aria-label="停止生成"
             className="w-9 h-9 rounded-xl bg-[var(--color-surface-2)] text-[var(--color-text)] grid place-items-center hover:bg-[var(--color-border)] transition-colors">

@@ -1,23 +1,42 @@
+export type Modality = 'text' | 'image'
+
 export interface AvailableModel {
   id: string
   name: string
   description: string
   url: string
+  mmproj_url?: string
   size_bytes: number
   requirements: string
   params: string
   language: string
+  modalities: Modality[]
   downloaded: boolean
   local_path: string | null
+  mmproj_downloaded?: boolean | null
 }
 
-export interface DownloadState {
-  status: 'downloading' | 'completed' | 'error' | 'not_found' | 'already_downloading' | 'started'
-  progress: number
-  path?: string
-  error?: string
+export interface ImportResult {
+  status: 'imported' | 'error' | 'canceled'
   model_id?: string
-  retrying?: number
+  path?: string
+  size_bytes?: number
+  action?: 'moved' | 'copied'
+  metadata?: ModelMetadata
+  error?: string
+}
+
+export interface ModelMetadata {
+  display_name?: string
+  description?: string
+  params?: string
+  language?: string
+  requirements?: string
+  ctx_size?: number
+  gpu_layers?: number
+  modalities?: Modality[]
+  imported_at?: number
+  updated_at?: number
 }
 
 export interface LocalModel {
@@ -25,6 +44,16 @@ export interface LocalModel {
   name: string
   path: string
   size_bytes: number
+  is_custom?: boolean
+  description?: string
+  params?: string
+  language?: string
+  requirements?: string
+  modalities?: Modality[]
+  ctx_size?: number
+  gpu_layers?: number
+  mmproj_path?: string | null
+  has_mmproj?: boolean
 }
 
 export interface ConversationMeta {
@@ -66,11 +95,13 @@ declare global {
       chatStream: (
         messages: unknown[],
         onToken: (t: string) => void,
-        onDone: (c: string) => void
+        onDone: (c: string) => void,
+        onClear?: () => void,
+        onTool?: (tool: string) => void,
       ) => () => void
-      loadModel: (path: string) => Promise<{ status: string }>
+      loadModel: (path: string, options?: { ctx_size?: number; gpu_layers?: number }) => Promise<{ status: string; ctx_size?: number; gpu_layers?: number; error?: string; mmproj_loaded?: boolean }>
       unloadModel: () => Promise<{ status: string }>
-      getModelStatus: () => Promise<{ loaded: boolean; path?: string }>
+      getModelStatus: () => Promise<{ loaded: boolean; path?: string; ctx_size?: number; gpu_layers?: number; modalities: Modality[] }>
       getSidecarDiagnostics: () => Promise<SidecarDiagnostics>
       getHealth: () => Promise<{ status: string }>
       startScreenCapture: () => Promise<void>
@@ -79,8 +110,10 @@ declare global {
       getSkills: () => Promise<{ skills: Array<{ name: string; description: string }> }>
       getAvailableModels: () => Promise<{ models: AvailableModel[] }>
       getLocalModels: () => Promise<{ models: LocalModel[] }>
-      downloadModel: (modelId: string) => Promise<DownloadState>
-      getDownloadProgress: (modelId: string) => Promise<DownloadState>
+      importModel: (modelId: string | null, metadata?: Record<string, unknown>) => Promise<ImportResult>
+      importMmproj: (modelId: string) => Promise<ImportResult>
+      getModelMetadata: (modelId: string) => Promise<{ model_id: string; metadata: ModelMetadata }>
+      updateModelMetadata: (modelId: string, fields: Partial<ModelMetadata>) => Promise<{ model_id: string; metadata: ModelMetadata }>
       deleteLocalModel: (modelId: string) => Promise<{ status: string }>
       listConversations: () => Promise<{ conversations: ConversationMeta[] }>
       getConversation: (id: string) => Promise<Conversation>

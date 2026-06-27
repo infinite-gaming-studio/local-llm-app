@@ -5,11 +5,16 @@ import sys
 import socket
 
 from contextlib import asynccontextmanager
+from typing import Optional
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
-from model_manager import ModelManager, get_available_models, get_local_models, start_download, get_download_progress, delete_local_model
+from model_manager import (
+    ModelManager, get_available_models, get_local_models,
+    import_model, import_mmproj, delete_local_model,
+    get_model_metadata, set_model_metadata, get_model_modalities, get_mmproj_path,
+)
 from engine import SkillEngine
 from conversations import ConversationStore
 
@@ -21,13 +26,30 @@ class ChatRequest(BaseModel):
 
 class ModelLoadRequest(BaseModel):
     path: str
-    ctx_size: int = 32768
-    gpu_layers: int = -1
+    ctx_size: Optional[int] = None
+    gpu_layers: Optional[int] = None
+
+
+class ModelImportRequest(BaseModel):
+    source_path: str
+    model_id: Optional[str] = None
+    metadata: Optional[dict] = None
+
+
+class ModelMetadataUpdate(BaseModel):
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+    params: Optional[str] = None
+    language: Optional[str] = None
+    requirements: Optional[str] = None
+    ctx_size: Optional[int] = None
+    gpu_layers: Optional[int] = None
+    modalities: Optional[list[str]] = None
 
 
 class ConversationBody(BaseModel):
-    id: str | None = None
-    title: str | None = None
+    id: Optional[str] = None
+    title: Optional[str] = None
     messages: list[dict] = []
 
 
@@ -36,7 +58,7 @@ class RenameBody(BaseModel):
 
 
 class SettingsBody(BaseModel):
-    hf_token: str | None = None
+    hf_token: Optional[str] = None
 
 
 app_state = {
@@ -72,14 +94,30 @@ async def load_model(req: ModelLoadRequest):
         app_state["model"].unload()
         app_state["model"] = None
 
-    manager = ModelManager(req.path, ctx_size=req.ctx_size, gpu_layers=req.gpu_layers)
+    # 从 metadata 取默认值，前端传入则覆盖
+    from pathlib import Path as _Path
+    model_id = _Path(req.path).stem
+    meta = get_model_metadata(model_id)
+    ctx_size = req.ctx_size if req.ctx_size is not None else meta.get("ctx_size", 32768)
+    gpu_layers = req.gpu_layers if req.gpu_layers is not None else meta.get("gpu_layers", -1)
+
+    # 自动查找 mmproj 视觉投影文件（多模态模型需要）
+    mmproj_path = get_mmproj_path(model_id)
+
+    manager = ModelManager(req.path, ctx_size=ctx_size, gpu_layers=gpu_layers, mmproj_path=mmproj_path)
     manager.load()
     app_state["model"] = manager
     app_state["model_loaded"] = True
 
     from agent import AgentOrchestrator
     app_state["agent"] = AgentOrchestrator(manager, app_state["skill_engine"])
-    return {"status": "loaded", "model": req.path}
+    return {
+        "status": "loaded",
+        "model": req.path,
+        "ctx_size": ctx_size,
+        "gpu_layers": gpu_layers,
+        "mmproj_loaded": mmproj_path is not None,
+    }
 
 
 @app.post("/model/unload")
@@ -95,12 +133,16 @@ async def unload_model():
 @app.get("/model/status")
 async def model_status():
     if app_state["model"] is not None:
+        from pathlib import Path as _Path
+        model_id = _Path(app_state["model"].path).stem
         return {
             "loaded": True,
             "path": app_state["model"].path,
             "ctx_size": app_state["model"].ctx_size,
+            "gpu_layers": app_state["model"].gpu_layers,
+            "modalities": get_model_modalities(model_id),
         }
-    return {"loaded": False}
+    return {"loaded": False, "modalities": ["text"]}
 
 
 @app.post("/chat")
@@ -117,8 +159,11 @@ async def chat_stream(req: ChatRequest):
     if app_state["agent"] is None:
         return JSONResponse({"error": "no model loaded"}, status_code=400)
 
-    full_content = app_state["agent"].run(req.messages)
-    return {"token": full_content, "done": True, "full_content": full_content}
+    async def event_stream():
+        async for event in app_state["agent"].run_stream(req.messages):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @app.get("/skills")
@@ -195,24 +240,42 @@ async def models_local():
     return {"models": get_local_models()}
 
 
-@app.post("/models/download")
-async def models_download(req: ModelLoadRequest):
-    # reuse ModelLoadRequest fields — only uses path as model_id
-    result = start_download(req.path)
+@app.post("/models/import")
+async def models_import(req: ModelImportRequest):
+    result = import_model(req.source_path, req.model_id, req.metadata)
+    if result["status"] == "error":
+        return JSONResponse(result, status_code=400)
     return result
+
+
+class MmprojImportRequest(BaseModel):
+    source_path: str
+    model_id: str
+
+
+@app.post("/models/import-mmproj")
+async def models_import_mmproj(req: MmprojImportRequest):
+    result = import_mmproj(req.source_path, req.model_id)
+    if result["status"] == "error":
+        return JSONResponse(result, status_code=400)
+    return result
+
+
+@app.get("/models/local/{model_id}/metadata")
+async def models_get_metadata(model_id: str):
+    return {"model_id": model_id, "metadata": get_model_metadata(model_id)}
+
+
+@app.put("/models/local/{model_id}/metadata")
+async def models_update_metadata(model_id: str, req: ModelMetadataUpdate):
+    fields = {k: v for k, v in req.model_dump().items() if v is not None}
+    updated = set_model_metadata(model_id, fields)
+    return {"model_id": model_id, "metadata": updated}
 
 
 @app.delete("/models/local/{model_id}")
 async def models_local_delete(model_id: str):
     return delete_local_model(model_id)
-
-
-@app.get("/models/download/progress/{model_id}")
-async def models_download_progress(model_id: str):
-    state = get_download_progress(model_id)
-    if state is None:
-        return {"status": "not_found"}
-    return state
 
 
 def find_free_port():

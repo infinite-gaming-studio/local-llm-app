@@ -6,8 +6,8 @@ import { Skills } from './pages/Skills'
 import { Sidebar } from './components/Sidebar'
 import { TopBar } from './components/TopBar'
 import { getTheme, setTheme } from './lib/theme'
-import { useModelDownloads } from './store/useModelDownloads'
 import { useLogs } from './store/useLogs'
+import { useConversations } from './store/useConversations'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 
 export default function App() {
@@ -18,8 +18,9 @@ export default function App() {
 
   useEffect(() => {
     setTheme(getTheme())
-    useModelDownloads.getState().restore()
     const unsubscribeLogs = useLogs.getState().init()
+    // 拉取当前已加载模型的模态信息，决定 Composer 显示哪些上传按钮
+    useConversations.getState().refreshModelStatus()
     return () => {
       unsubscribeLogs()
     }
@@ -31,11 +32,13 @@ export default function App() {
         {sidebarOpen && <Sidebar />}
         <main className="flex-1 flex flex-col overflow-hidden">
           <TopBar onToggleSidebar={toggleSidebar} />
-          <Routes>
-            <Route path="/" element={<Chat />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/skills" element={<Skills />} />
-          </Routes>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <Routes>
+              <Route path="/" element={<Chat />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/skills" element={<Skills />} />
+            </Routes>
+          </div>
         </main>
       </div>
     </HashRouter>
