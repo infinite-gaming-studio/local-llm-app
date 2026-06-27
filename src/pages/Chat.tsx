@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useChat } from '../hooks/useChat'
 import { TopBar } from '../components/TopBar'
 import { Composer } from '../components/Composer'
+import { LogDrawer } from '../components/LogDrawer'
 
 export function Chat() {
   const { messages, streaming, sendMessage, stopStreaming } = useChat()
@@ -24,6 +25,7 @@ export function Chat() {
           ))}
         </div>
       </div>
+      <LogDrawer />
       <Composer onSend={sendMessage} onStop={stopStreaming} streaming={streaming} />
     </div>
   )
