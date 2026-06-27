@@ -1,5 +1,6 @@
 import { TopBar } from '../components/TopBar'
 import { Composer } from '../components/Composer'
+import { Message } from '../components/Message'
 import { LogDrawer } from '../components/LogDrawer'
 import { useConversations } from '../store/useConversations'
 
@@ -19,14 +20,14 @@ export function Chat() {
               ? streamingContent
               : m.content
             return (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`rounded-2xl px-4 py-3 max-w-[80%] whitespace-pre-wrap leading-[1.65] ${m.role === 'user' ? 'bg-[--color-surface-2]' : ''}`}>
-                  {content}
-                  {streaming && i === messages.length - 1 && m.role === 'assistant' && (
-                    <span className="animate-pulse">▍</span>
-                  )}
-                </div>
-              </div>
+              <Message
+                key={i}
+                msg={{ ...m, content }}
+                streaming={streaming}
+                isLast={i === messages.length - 1}
+                onRegenerate={() => {}}
+                onEdit={() => {}}
+              />
             )
           })}
         </div>
