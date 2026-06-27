@@ -54,7 +54,7 @@ export function LogDrawer() {
               const err = e.stream === 'stderr' || ERROR_RE.test(e.line)
               return <div key={i} className={err ? 'text-[--color-accent]' : 'text-[--color-text-muted]'}><span className="opacity-60">{ts}</span> {e.line}</div>
             })}
-          {!follow && <button onClick={() => setFollow(true)} className="sticky bottom-2 ml-auto block px-2 py-1 rounded bg-[--color-surface-2] text-[--color-text]">↓ 跟随最新</button>}
+          {!follow && <button onClick={() => setFollow(true)} className="sticky bottom-2 ml-auto block px-2 py-1 rounded bg-[--color-surface-2] text-[--color-text]" aria-label="跟随最新">↓ 跟随最新</button>}
         </div>
       )}
     </div>

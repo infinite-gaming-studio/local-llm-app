@@ -56,8 +56,9 @@ export function Sidebar() {
     `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors ${isActive ? 'bg-[--color-surface-2] text-[--color-text] font-medium' : 'text-[--color-text-muted] hover:text-[--color-text] hover:bg-[--color-surface-2]/60'}`
 
   const Row = (c: { id: string; title: string }) => (
-    <div key={c.id} className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer ${activeId === c.id ? 'bg-[--color-accent-soft] text-[--color-text]' : 'text-[--color-text-muted] hover:bg-[--color-surface-2]/60'}`}
-      onClick={() => { selectConversation(c.id); nav('/') }}>
+    <div key={c.id} role="button" tabIndex={0} className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer ${activeId === c.id ? 'bg-[--color-accent-soft] text-[--color-text]' : 'text-[--color-text-muted] hover:bg-[--color-surface-2]/60'}`}
+      onClick={() => { selectConversation(c.id); nav('/') }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectConversation(c.id); nav('/') } }}>
       {renaming === c.id ? (
         <input autoFocus value={renameVal} onChange={(e) => setRenameVal(e.target.value)}
           onClick={(e) => e.stopPropagation()}
@@ -67,8 +68,8 @@ export function Sidebar() {
       ) : <span className="flex-1 truncate text-[13px]">{c.title}</span>}
       {renaming !== c.id && (
         <div className="hidden group-hover:flex gap-0.5">
-          <button onClick={(e) => { e.stopPropagation(); setRenaming(c.id); setRenameVal(c.title) }} className="p-1 rounded hover:bg-[--color-border]"><PencilSimple size={13} /></button>
-          <button onClick={(e) => { e.stopPropagation(); setConfirmDel(c.id) }} className="p-1 rounded hover:bg-[--color-border]"><Trash size={13} /></button>
+          <button onClick={(e) => { e.stopPropagation(); setRenaming(c.id); setRenameVal(c.title) }} className="p-1 rounded hover:bg-[--color-border]" aria-label="重命名"><PencilSimple size={13} /></button>
+          <button onClick={(e) => { e.stopPropagation(); setConfirmDel(c.id) }} className="p-1 rounded hover:bg-[--color-border]" aria-label="删除"><Trash size={13} /></button>
         </div>
       )}
     </div>
@@ -92,7 +93,7 @@ export function Sidebar() {
       <div className="px-3 pb-2">
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[--color-surface-2]/60">
           <MagnifyingGlass size={15} className="text-[--color-text-muted]" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索对话"
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索对话" aria-label="搜索对话"
             className="flex-1 bg-transparent outline-none text-[13px]" />
         </div>
       </div>

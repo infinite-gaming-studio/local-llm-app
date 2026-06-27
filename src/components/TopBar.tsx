@@ -62,6 +62,7 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
         <button
           onClick={() => setOpen(!open)}
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] text-[--color-text-muted] hover:bg-[--color-surface-2] hover:text-[--color-text] transition-colors"
+          aria-label="选择模型"
         >
           <span className={`w-1.5 h-1.5 rounded-full ${modelStatus.loaded ? 'bg-emerald-500' : 'bg-red-500'}`} />
           {currentName}

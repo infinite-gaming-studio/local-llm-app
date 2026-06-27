@@ -31,8 +31,8 @@ export function Message({ msg, streaming, isLast }: Props) {
         <span className="text-[12px] text-[--color-text-muted] mb-1 px-1">你</span>
         <div className="flex items-end gap-2 max-w-[80%]">
           <div className="opacity-0 group-hover:opacity-100 flex gap-0.5 mb-1">
-            <button onClick={() => { setDraft(msg.content); setEditing(true) }} className="p-1 rounded hover:bg-[--color-surface-2]"><PencilSimple size={14} /></button>
-            <button onClick={copy} className="p-1 rounded hover:bg-[--color-surface-2]">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
+            <button onClick={() => { setDraft(msg.content); setEditing(true) }} className="p-1 rounded hover:bg-[--color-surface-2]" aria-label="编辑"><PencilSimple size={14} /></button>
+            <button onClick={copy} className="p-1 rounded hover:bg-[--color-surface-2]" aria-label="复制">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
           </div>
           <div className="rounded-[14px] px-4 py-3 bg-[--color-surface-2] whitespace-pre-wrap leading-[1.65]">
             {msg.images?.map((img, i) => <img key={i} src={img} alt="" className="max-h-60 rounded-lg mb-2 block" />)}
@@ -69,8 +69,8 @@ export function Message({ msg, streaming, isLast }: Props) {
         </div>
         {!streaming && (
           <div className="opacity-0 group-hover:opacity-100 flex gap-0.5 mt-1.5">
-            <button onClick={copy} className="p-1 rounded hover:bg-[--color-surface-2]">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
-            <button onClick={regenerate} className="p-1 rounded hover:bg-[--color-surface-2]"><ArrowsClockwise size={14} /></button>
+            <button onClick={copy} className="p-1 rounded hover:bg-[--color-surface-2]" aria-label="复制">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
+            <button onClick={regenerate} className="p-1 rounded hover:bg-[--color-surface-2]" aria-label="重新生成"><ArrowsClockwise size={14} /></button>
           </div>
         )}
       </div>
