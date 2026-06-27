@@ -29,7 +29,7 @@ let logBuffer: Array<{ stream: 'stdout' | 'stderr'; line: string; ts: number }> 
 let rendererReady = false
 
 function sendLogsToRenderer(e: { stream: 'stdout' | 'stderr'; line: string; ts: number }) {
-  if (!rendererReady || !mainWindow || mainWindow.isDestroyed()) {
+  if (!rendererReady || !mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isCrashed()) {
     logBuffer.push(e)
     return
   }
@@ -199,6 +199,10 @@ app.whenReady().then(async () => {
   mainWindow?.webContents.on('did-finish-load', () => {
     rendererReady = true
     flushLogBuffer()
+  })
+
+  mainWindow?.webContents.on('crashed', () => {
+    rendererReady = false
   })
 
   sidecar.onLog((e) => sendLogsToRenderer(e))
