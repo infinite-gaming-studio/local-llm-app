@@ -19,6 +19,7 @@ const api = {
   unloadModel: () => ipcRenderer.invoke('model:unload'),
   getModelStatus: () => ipcRenderer.invoke('model:status'),
   getHealth: () => ipcRenderer.invoke('sidecar:health'),
+  getSidecarDiagnostics: () => ipcRenderer.invoke('sidecar:diagnostics'),
   startScreenCapture: () => ipcRenderer.invoke('screen:start'),
   stopScreenCapture: () => ipcRenderer.invoke('screen:stop'),
   getScreenFrame: () => ipcRenderer.invoke('screen:frame'),
@@ -38,6 +39,7 @@ const api = {
     ipcRenderer.on('sidecar:log', handler)
     return () => ipcRenderer.removeListener('sidecar:log', handler)
   },
+  setSettings: (settings: { hf_token?: string }) => ipcRenderer.invoke('settings:set', settings),
 }
 
 contextBridge.exposeInMainWorld('llmApp', api)

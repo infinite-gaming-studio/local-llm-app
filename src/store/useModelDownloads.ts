@@ -31,14 +31,21 @@ export const useModelDownloads = create<DownloadStore>((set, get) => ({
   refreshProgress: async () => {
     const active = Object.entries(get().downloads).filter(([, d]) => d.status === 'downloading')
     if (active.length === 0) { get().stopPolling(); return }
+    let anyCompleted = false
     for (const [id] of active) {
       try {
         const st = await api.getDownloadProgress(id)
         set((s) => ({ downloads: { ...s.downloads, [id]: st } }))
+        if (st.status === 'completed') {
+          anyCompleted = true
+        }
         if (st.status === 'completed' || st.status === 'error') {
           await api.getAvailableModels()
         }
       } catch (e) { console.error(e) }
+    }
+    if (anyCompleted) {
+      get().stopPolling()
     }
   },
 

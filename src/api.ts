@@ -51,6 +51,14 @@ export interface LogEntry {
   ts: number
 }
 
+export interface SidecarDiagnostics {
+  port: number
+  isRunning: boolean
+  startError: string | null
+  pythonPath: string
+  sidecarDir: string
+}
+
 declare global {
   interface Window {
     llmApp: {
@@ -63,6 +71,7 @@ declare global {
       loadModel: (path: string) => Promise<{ status: string }>
       unloadModel: () => Promise<{ status: string }>
       getModelStatus: () => Promise<{ loaded: boolean; path?: string }>
+      getSidecarDiagnostics: () => Promise<SidecarDiagnostics>
       getHealth: () => Promise<{ status: string }>
       startScreenCapture: () => Promise<void>
       stopScreenCapture: () => Promise<void>
@@ -81,6 +90,7 @@ declare global {
       renameConversation: (id: string, title: string) => Promise<{ status: string }>
       deleteConversation: (id: string) => Promise<{ status: string }>
       onLog: (cb: (e: LogEntry) => void) => () => void
+      setSettings: (settings: { hf_token?: string }) => Promise<{ status: string }>
     }
   }
 }

@@ -46,22 +46,22 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
   const selectable = models.filter((m) => m.downloaded || m.local_path)
 
   return (
-    <header className="flex items-center gap-2 px-4 h-12 border-b border-[--color-border] shrink-0">
+    <header className="flex items-center gap-2 px-4 h-12 border-b border-[var(--color-border)] shrink-0">
       <button
         onClick={onToggleSidebar}
-        className="p-1.5 rounded-lg text-[--color-text-muted] hover:bg-[--color-surface-2] hover:text-[--color-text] transition-colors"
+        className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition-colors"
         aria-label="切换侧栏"
       >
         <SidebarSimple size={18} />
       </button>
-      <span className="text-[13px] text-[--color-text-muted]">新对话</span>
+      <span className="text-[13px] text-[var(--color-text-muted)]">新对话</span>
 
       <div className="flex-1" />
 
       <div className="relative" ref={ref}>
         <button
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] text-[--color-text-muted] hover:bg-[--color-surface-2] hover:text-[--color-text] transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition-colors"
           aria-label="选择模型"
         >
           <span className={`w-1.5 h-1.5 rounded-full ${modelStatus.loaded ? 'bg-emerald-500' : 'bg-red-500'}`} />
@@ -70,21 +70,21 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
         </button>
 
         {open && (
-          <div className="absolute right-0 top-full mt-1 w-56 py-1 rounded-lg border border-[--color-border] bg-[--color-surface] shadow-lg z-50">
+          <div className="absolute right-0 top-full mt-1 w-56 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg z-50">
             {selectable.length === 0 ? (
-              <div className="px-3 py-2 text-[12px] text-[--color-text-muted]">暂无可用模型</div>
+              <div className="px-3 py-2 text-[12px] text-[var(--color-text-muted)]">暂无可用模型</div>
             ) : selectable.map((m) => (
               <button
                 key={m.id}
                 onClick={() => handleSelect(m)}
                 disabled={operating === m.id}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[--color-text] hover:bg-[--color-surface-2] disabled:opacity-50 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--color-text)] hover:bg-[var(--color-surface-2)] disabled:opacity-50 transition-colors"
               >
                 <span className="w-4 flex justify-center shrink-0">
                   {modelStatus.path === m.local_path && <Check size={14} className="text-emerald-500" />}
                 </span>
                 <span className="flex-1 text-left truncate">{m.name}</span>
-                {operating === m.id && <span className="text-[11px] text-[--color-text-muted]">加载中…</span>}
+                {operating === m.id && <span className="text-[11px] text-[var(--color-text-muted)]">加载中…</span>}
               </button>
             ))}
           </div>

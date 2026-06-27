@@ -1,15 +1,44 @@
-import { ChildProcess, spawn } from 'child_process'
+import { ChildProcess, spawn, execSync } from 'child_process'
 import path from 'path'
 import { app } from 'electron'
+
+function resolvePython(): string {
+  if (process.platform === 'win32') return 'python'
+  const candidates = ['python3', 'python']
+  for (const cmd of candidates) {
+    try {
+      const p = execSync(`which ${cmd}`, { encoding: 'utf-8' }).trim()
+      if (!p) continue
+      // Verify it can import required modules
+      execSync(`${p} -c "import fastapi, uvicorn, httpx, llama_cpp"`, {
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      })
+      console.log(`[sidecar] resolved python: ${p}`)
+      return p
+    } catch {}
+  }
+  const fallback = 'python3'
+  console.error(`[sidecar] no working python found, falling back to "${fallback}"`)
+  return fallback
+}
+
+const RESOLVED_PYTHON = resolvePython()
 
 export class SidecarManager {
   private process: ChildProcess | null = null
   private port: number = 0
   private restartCount = 0
-  private maxRestarts = 3
+  private maxRestarts = 1
   private stdoutBuf = ''
   private stderrBuf = ''
   private logListeners = new Set<(e: { stream: 'stdout' | 'stderr'; line: string; ts: number }) => void>()
+  private _startError: string | null = null
+  private _sidecarDir: string = ''
+
+  get startError(): string | null { return this._startError }
+  get sidecarDir(): string { return this._sidecarDir }
+  get pythonPath(): string { return RESOLVED_PYTHON }
 
   onLog(cb: (e: { stream: 'stdout' | 'stderr'; line: string; ts: number }) => void) {
     this.logListeners.add(cb)
@@ -43,24 +72,30 @@ export class SidecarManager {
   }
 
   async start(): Promise<number> {
+    this._startError = null
     const portFile = path.join(app.getPath('userData'), 'sidecar-port.txt')
-    const sidecarDir = app.isPackaged
+    this._sidecarDir = app.isPackaged
       ? path.join(process.resourcesPath, 'sidecar')
       : path.join(__dirname, '..', 'sidecar')
 
-    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3'
-
-    this.process = spawn(pythonCmd, ['main.py', portFile], {
-      cwd: sidecarDir,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
+    try {
+      this.process = spawn(RESOLVED_PYTHON, ['main.py', portFile], {
+        cwd: this._sidecarDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    } catch (err) {
+      this._startError = `spawn failed: ${err instanceof Error ? err.message : String(err)}`
+      throw err
+    }
 
     this.process.stdout?.on('data', (data: Buffer) => {
       this.bufferLine('stdout', data.toString())
     })
 
     this.process.stderr?.on('data', (data: Buffer) => {
-      this.bufferLine('stderr', data.toString())
+      const text = data.toString()
+      console.error('[sidecar:stderr]', text.trimEnd())
+      this.bufferLine('stderr', text)
     })
 
     this.process.on('exit', (code) => {
@@ -72,7 +107,12 @@ export class SidecarManager {
       }
     })
 
-    await this.waitForReady(portFile)
+    try {
+      await this.waitForReady(portFile)
+    } catch (err) {
+      this._startError = `startup failed: ${err instanceof Error ? err.message : String(err)}`
+      throw err
+    }
     return this.port
   }
 

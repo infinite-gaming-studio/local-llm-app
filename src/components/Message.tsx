@@ -28,13 +28,13 @@ export function Message({ msg, streaming, isLast }: Props) {
   if (msg.role === 'user' && !editing) {
     return (
       <div className="group flex flex-col items-end">
-        <span className="text-[12px] text-[--color-text-muted] mb-1 px-1">你</span>
+        <span className="text-[12px] text-[var(--color-text-muted)] mb-1 px-1">你</span>
         <div className="flex items-end gap-2 max-w-[80%]">
           <div className="opacity-0 group-hover:opacity-100 flex gap-0.5 mb-1">
-            <button onClick={() => { setDraft(msg.content); setEditing(true) }} className="p-1 rounded hover:bg-[--color-surface-2]" aria-label="编辑"><PencilSimple size={14} /></button>
-            <button onClick={copy} className="p-1 rounded hover:bg-[--color-surface-2]" aria-label="复制">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
+            <button onClick={() => { setDraft(msg.content); setEditing(true) }} className="p-1 rounded hover:bg-[var(--color-surface-2)]" aria-label="编辑"><PencilSimple size={14} /></button>
+            <button onClick={copy} className="p-1 rounded hover:bg-[var(--color-surface-2)]" aria-label="复制">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
           </div>
-          <div className="rounded-[14px] px-4 py-3 bg-[--color-surface-2] whitespace-pre-wrap leading-[1.65]">
+          <div className="rounded-[14px] px-4 py-3 bg-[var(--color-surface-2)] whitespace-pre-wrap leading-[1.65]">
             {msg.images?.map((img, i) => <img key={i} src={img} alt="" className="max-h-60 rounded-lg mb-2 block" />)}
             {msg.content}
           </div>
@@ -47,10 +47,10 @@ export function Message({ msg, streaming, isLast }: Props) {
     return (
       <div className="flex flex-col items-end">
         <textarea autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} rows={3}
-          className="w-[80%] rounded-[14px] px-4 py-3 bg-[--color-surface-2] outline-none ring-2 ring-[--color-accent]/40 resize-none" />
+          className="w-[80%] rounded-[14px] px-4 py-3 bg-[var(--color-surface-2)] outline-none ring-2 ring-[var(--color-accent)]/40 resize-none" />
         <div className="flex gap-2 mt-2">
-          <button onClick={() => setEditing(false)} className="px-3 py-1 rounded-lg text-[13px] hover:bg-[--color-surface-2]">取消</button>
-          <button onClick={() => { editAndResend(draft); setEditing(false) }} className="px-3 py-1 rounded-lg bg-[--color-accent] text-white text-[13px]">保存并重发</button>
+          <button onClick={() => setEditing(false)} className="px-3 py-1 rounded-lg text-[13px] hover:bg-[var(--color-surface-2)]">取消</button>
+          <button onClick={() => { editAndResend(draft); setEditing(false) }} className="px-3 py-1 rounded-lg bg-[var(--color-accent)] text-white text-[13px]">保存并重发</button>
         </div>
       </div>
     )
@@ -58,19 +58,19 @@ export function Message({ msg, streaming, isLast }: Props) {
 
   return (
     <div className="group flex gap-3">
-      <Sparkle size={20} weight="fill" className="text-[--color-accent] mt-1 shrink-0" />
+      <Sparkle size={20} weight="fill" className="text-[var(--color-accent)] mt-1 shrink-0" />
       <div className="flex-1 min-w-0">
-        <span className="text-[12px] text-[--color-text-muted] mb-1 block px-0.5">AI</span>
+        <span className="text-[12px] text-[var(--color-text-muted)] mb-1 block px-0.5">AI</span>
         <div className="prose prose-sm max-w-none dark:prose-invert leading-[1.65]">
           <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={{
             pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
           }}>{msg.content}</ReactMarkdown>
-          {streaming && isLast && <span className="inline-block w-2 h-4 bg-[--color-accent] align-middle animate-pulse" />}
+          {streaming && isLast && <span className="inline-block w-2 h-4 bg-[var(--color-accent)] align-middle animate-pulse" />}
         </div>
         {!streaming && (
           <div className="opacity-0 group-hover:opacity-100 flex gap-0.5 mt-1.5">
-            <button onClick={copy} className="p-1 rounded hover:bg-[--color-surface-2]" aria-label="复制">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
-            <button onClick={regenerate} className="p-1 rounded hover:bg-[--color-surface-2]" aria-label="重新生成"><ArrowsClockwise size={14} /></button>
+            <button onClick={copy} className="p-1 rounded hover:bg-[var(--color-surface-2)]" aria-label="复制">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
+            <button onClick={regenerate} className="p-1 rounded hover:bg-[var(--color-surface-2)]" aria-label="重新生成"><ArrowsClockwise size={14} /></button>
           </div>
         )}
       </div>

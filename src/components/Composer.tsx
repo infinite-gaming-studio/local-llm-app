@@ -69,18 +69,18 @@ export function Composer({ onSend, onStop, streaming }: ComposerProps) {
             <div key={i} className="relative">
               <img src={img} alt="" className="w-16 h-16 object-cover rounded-lg" />
               <button onClick={() => setPendingImages((p) => p.filter((_, j) => j !== i))}
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[--color-accent] text-white grid place-items-center">
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--color-accent)] text-white grid place-items-center">
                 <X size={12} weight="bold" />
               </button>
             </div>
           ))}
         </div>
       )}
-      <div className={`flex items-end gap-2 rounded-2xl border border-[--color-border] bg-[--color-surface] px-3 py-2 transition-colors ${dragOver ? 'ring-2 ring-[--color-accent]/40' : ''}`}>
+      <div className={`flex items-end gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 transition-colors ${dragOver ? 'ring-2 ring-[var(--color-accent)]/40' : ''}`}>
         <input ref={fileInputRef} type="file" accept="image/*" hidden multiple
           onChange={(e) => e.target.files && addFiles(e.target.files)} />
         <button onClick={() => fileInputRef.current?.click()} disabled={streaming}
-          className="p-2 rounded-lg text-[--color-text-muted] hover:text-[--color-text] hover:bg-[--color-surface-2] transition-colors disabled:opacity-40"
+          className="p-2 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)] transition-colors disabled:opacity-40"
           aria-label="添加图片">
           <ImageIcon size={20} />
         </button>
@@ -89,12 +89,12 @@ export function Composer({ onSend, onStop, streaming }: ComposerProps) {
           className="flex-1 resize-none bg-transparent outline-none text-[15px] leading-relaxed py-1.5 max-h-[200px]" />
         {streaming ? (
           <button onClick={onStop} aria-label="停止生成"
-            className="w-9 h-9 rounded-xl bg-[--color-surface-2] text-[--color-text] grid place-items-center hover:bg-[--color-border] transition-colors">
+            className="w-9 h-9 rounded-xl bg-[var(--color-surface-2)] text-[var(--color-text)] grid place-items-center hover:bg-[var(--color-border)] transition-colors">
             <Stop size={18} weight="fill" />
           </button>
         ) : (
           <button onClick={send} disabled={!canSend} aria-label="发送"
-            className="w-9 h-9 rounded-xl bg-[--color-accent] text-white grid place-items-center disabled:opacity-30 transition-opacity hover:opacity-90">
+            className="w-9 h-9 rounded-xl bg-[var(--color-accent)] text-white grid place-items-center disabled:opacity-30 transition-opacity hover:opacity-90">
             <ArrowUp size={18} weight="bold" />
           </button>
         )}

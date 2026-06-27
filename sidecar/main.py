@@ -1,10 +1,11 @@
 import asyncio
 import json
+import os
 import sys
 import socket
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -32,6 +33,10 @@ class ConversationBody(BaseModel):
 
 class RenameBody(BaseModel):
     title: str
+
+
+class SettingsBody(BaseModel):
+    hf_token: str | None = None
 
 
 app_state = {
@@ -107,25 +112,13 @@ async def chat(req: ChatRequest):
     return {"message": {"role": "assistant", "content": content}}
 
 
-@app.websocket("/chat/stream")
-async def chat_stream(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        data = await websocket.receive_text()
-        req = json.loads(data)
-        messages = req.get("messages", [])
+@app.post("/chat/stream")
+async def chat_stream(req: ChatRequest):
+    if app_state["agent"] is None:
+        return JSONResponse({"error": "no model loaded"}, status_code=400)
 
-        if app_state["agent"] is None:
-            await websocket.send_json({"error": "no model loaded"})
-            await websocket.close()
-            return
-
-        full_content = app_state["agent"].run(messages)
-        await websocket.send_json({"token": full_content})
-        await websocket.send_json({"done": True, "full_content": full_content})
-        await websocket.close()
-    except WebSocketDisconnect:
-        pass
+    full_content = app_state["agent"].run(req.messages)
+    return {"token": full_content, "done": True, "full_content": full_content}
 
 
 @app.get("/skills")
@@ -176,6 +169,17 @@ async def rename_conversation(cid: str, req: RenameBody):
 async def delete_conversation(cid: str):
     app_state["conversations"].delete(cid)
     return {"status": "ok"}
+
+
+# ── Settings ────────────────────────────────────────────────────────
+
+
+@app.post("/settings")
+async def update_settings(req: SettingsBody):
+    if req.hf_token:
+        os.environ["HF_TOKEN"] = req.hf_token
+        return {"status": "ok", "hf_token_set": True}
+    return {"status": "ok", "hf_token_set": False}
 
 
 # ── Model marketplace ──────────────────────────────────────────────

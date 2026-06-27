@@ -7,7 +7,7 @@ export function ThemeToggle() {
   return (
     <button
       onClick={() => setThemeState(toggleTheme())}
-      className="p-2 rounded-lg text-[--color-text-muted] hover:bg-[--color-surface-2] hover:text-[--color-text] transition-colors"
+      className="p-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] transition-colors"
       aria-label="切换主题"
     >
       {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}

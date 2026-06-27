@@ -3,8 +3,7 @@ import path from 'path'
 import { SidecarManager } from './sidecar'
 import { ScreenCapture } from './screen-capture'
 
-app.commandLine.appendSwitch('single-process')
-app.commandLine.appendSwitch('no-sandbox')
+app.commandLine.appendSwitch('in-process-gpu')
 
 let mainWindow: BrowserWindow | null = null
 const sidecar = new SidecarManager()
@@ -52,6 +51,14 @@ function flushLogBuffer() {
 }
 
 async function setupIPC() {
+  ipcMain.handle('sidecar:diagnostics', () => ({
+    port: (sidecar as any).port,
+    isRunning: sidecar.isRunning,
+    startError: sidecar.startError,
+    pythonPath: sidecar.pythonPath,
+    sidecarDir: sidecar.sidecarDir,
+  }))
+
   ipcMain.handle('sidecar:health', async () => {
     const res = await fetch(`${sidecar.baseUrl}/health`)
     return res.json()
@@ -87,21 +94,21 @@ async function setupIPC() {
   })
 
   ipcMain.on('chat:start', async (_event, messages: unknown[]) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${(sidecar as any).port}/chat/stream`)
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ messages }))
-    }
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data.toString())
+    try {
+      const res = await fetch(`${sidecar.baseUrl}/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages, stream: true }),
+      })
+      const data = await res.json()
       if (data.token) {
         try { mainWindow?.webContents.send('chat:token', data.token) } catch {}
       }
       if (data.done) {
         try { mainWindow?.webContents.send('chat:done', data.full_content) } catch {}
-        ws.close()
       }
+    } catch (e) {
+      try { mainWindow?.webContents.send('chat:done', '') } catch {}
     }
   })
 
@@ -183,6 +190,15 @@ async function setupIPC() {
     const res = await fetch(`${sidecar.baseUrl}/conversations/${id}`, { method: 'DELETE' })
     return res.json()
   })
+
+  ipcMain.handle('settings:set', async (_event, body: { hf_token?: string }) => {
+    const res = await fetch(`${sidecar.baseUrl}/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return res.json()
+  })
 }
 
 app.whenReady().then(async () => {
@@ -204,7 +220,7 @@ app.whenReady().then(async () => {
     flushLogBuffer()
   })
 
-  mainWindow?.webContents.on('crashed', () => {
+  mainWindow?.webContents.on('render-process-gone', () => {
     rendererReady = false
   })
 
