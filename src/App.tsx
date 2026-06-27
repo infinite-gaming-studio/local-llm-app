@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import { Chat } from './pages/Chat'
 import { Settings } from './pages/Settings'
@@ -8,9 +8,13 @@ import { TopBar } from './components/TopBar'
 import { getTheme, setTheme } from './lib/theme'
 import { useModelDownloads } from './store/useModelDownloads'
 import { useLogs } from './store/useLogs'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const toggleSidebar = useCallback(() => setSidebarOpen((s) => !s), [])
+
+  useKeyboardShortcuts(sidebarOpen, setSidebarOpen)
 
   useEffect(() => {
     setTheme(getTheme())
@@ -26,7 +30,7 @@ export default function App() {
       <div className="flex h-full">
         {sidebarOpen && <Sidebar />}
         <main className="flex-1 flex flex-col overflow-hidden">
-          <TopBar onToggleSidebar={() => setSidebarOpen((s) => !s)} />
+          <TopBar onToggleSidebar={toggleSidebar} />
           <Routes>
             <Route path="/" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />
