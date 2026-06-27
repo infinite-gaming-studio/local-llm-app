@@ -27,6 +27,7 @@ const api = {
   getLocalModels: () => ipcRenderer.invoke('models:local'),
   downloadModel: (modelId: string) => ipcRenderer.invoke('models:download', modelId),
   getDownloadProgress: (modelId: string) => ipcRenderer.invoke('models:download-progress', modelId),
+  deleteLocalModel: (modelId: string) => ipcRenderer.invoke('models:delete-local', modelId),
   listConversations: () => ipcRenderer.invoke('conversations:list'),
   getConversation: (id: string) => ipcRenderer.invoke('conversations:get', id),
   saveConversation: (conv: unknown) => ipcRenderer.invoke('conversations:save', conv),

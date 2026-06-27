@@ -259,6 +259,24 @@ def get_local_models() -> list[dict]:
     return local
 
 
+def delete_local_model(model_id: str) -> dict:
+    model_path = os.path.join(MODELS_DIR, f"{model_id}.gguf")
+    partial_path = model_path + ".partial"
+
+    removed = False
+    if os.path.exists(model_path):
+        os.remove(model_path)
+        removed = True
+    if os.path.exists(partial_path):
+        os.remove(partial_path)
+        removed = True
+
+    with _download_lock:
+        _download_states.pop(model_id, None)
+
+    return {"status": "deleted", "removed": removed}
+
+
 def start_download(model_id: str) -> dict:
     model = next((m for m in MODELS_CATALOG if m["id"] == model_id), None)
     if model is None:

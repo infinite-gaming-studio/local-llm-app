@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api, AvailableModel, LocalModel } from '../api'
 import { useModelDownloads } from '../store/useModelDownloads'
+import { Trash } from '@phosphor-icons/react'
 
 const MB = 1024 * 1024
 const GB = 1024 * MB
@@ -36,7 +37,7 @@ export function Settings() {
         {modelStatus.path && <span className="text-[12px] text-[--color-text-muted] flex-1 truncate">{modelStatus.path}</span>}
         {modelStatus.loaded && (
           <button onClick={handleUnload} disabled={operating === 'unload'}
-            className="px-4 py-1.5 rounded-lg bg-red-500 text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity">
+            className="px-4 py-1.5 rounded-lg bg-red-500 text-white text-[13px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity">
             {operating === 'unload' ? '卸载中…' : '卸载模型'}
           </button>
         )}
@@ -83,15 +84,21 @@ export function Settings() {
                 )}
                 <div className="mt-auto">
                   {isDone ? (
-                    <button onClick={() => handleLoad(m.local_path || dl?.path || m.id)} disabled={isOp}
-                      className="w-full py-2 rounded-lg bg-emerald-500 text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity">
-                      {isOp ? '加载中…' : '加载使用'}
-                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleLoad(m.local_path || dl?.path || m.id)} disabled={isOp}
+                        className="flex-1 py-2 rounded-lg bg-emerald-500 text-white text-[13px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity">
+                        {isOp ? '加载中…' : '加载使用'}
+                      </button>
+                      <button onClick={async () => { await api.deleteLocalModel(m.id); loadData() }}
+                        className="px-3 py-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors">
+                        <Trash size={16} />
+                      </button>
+                    </div>
                   ) : isDl ? (
-                    <div className="w-full py-2 text-center rounded-lg bg-[--color-surface-2] text-[13px] text-[--color-text-muted]">下载中…</div>
+                    <div className="w-full py-2 text-center rounded-lg bg-[--color-surface-2] text-[13px] text-[--color-text]">下载中…</div>
                   ) : (
                     <button onClick={() => startDownload(m.id)} disabled={isOp}
-                      className="w-full py-2 rounded-lg bg-[--color-accent] text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity">
+                      className="w-full py-2 rounded-lg bg-[--color-accent] text-white text-[13px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity">
                       {isOp ? '准备中…' : '下载'}
                     </button>
                   )}
@@ -111,7 +118,7 @@ export function Settings() {
                 <span className="flex-1 text-[14px] font-medium">{lm.name}</span>
                 <span className="text-[12px] text-[--color-text-muted]">{formatSize(lm.size_bytes)}</span>
                 <button onClick={() => handleLoad(lm.path)} disabled={operating === lm.path}
-                  className="px-4 py-1.5 rounded-lg bg-[--color-accent] text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity">
+                  className="px-4 py-1.5 rounded-lg bg-[--color-accent] text-white text-[13px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity">
                   {operating === lm.path ? '加载中…' : '加载'}
                 </button>
               </div>
@@ -135,7 +142,7 @@ function CustomPathInput({ onLoad, operating }: { onLoad: (p: string) => void; o
       <input value={p} onChange={(e) => setP(e.target.value)} placeholder="/path/to/model.gguf"
         className="flex-1 px-3 py-2.5 rounded-lg border border-[--color-border] bg-transparent text-[14px] outline-none focus:ring-2 focus:ring-[--color-accent]/40" />
       <button onClick={() => onLoad(p.trim())} disabled={!p.trim() || operating === p.trim()}
-        className="px-5 py-2.5 rounded-lg bg-[--color-accent] text-white text-[14px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity">
+        className="px-5 py-2.5 rounded-lg bg-[--color-accent] text-white text-[14px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity">
         {operating === p.trim() ? '加载中…' : '加载模型'}
       </button>
     </div>

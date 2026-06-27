@@ -8,7 +8,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from model_manager import ModelManager, get_available_models, get_local_models, start_download, get_download_progress
+from model_manager import ModelManager, get_available_models, get_local_models, start_download, get_download_progress, delete_local_model
 from engine import SkillEngine
 from conversations import ConversationStore
 
@@ -196,6 +196,11 @@ async def models_download(req: ModelLoadRequest):
     # reuse ModelLoadRequest fields — only uses path as model_id
     result = start_download(req.path)
     return result
+
+
+@app.delete("/models/local/{model_id}")
+async def models_local_delete(model_id: str):
+    return delete_local_model(model_id)
 
 
 @app.get("/models/download/progress/{model_id}")

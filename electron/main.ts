@@ -115,6 +115,11 @@ async function setupIPC() {
     return res.json()
   })
 
+  ipcMain.handle('models:delete-local', async (_event, modelId: string) => {
+    const res = await fetch(`${sidecar.baseUrl}/models/local/${modelId}`, { method: 'DELETE' })
+    return res.json()
+  })
+
   ipcMain.handle('models:download-progress', async (_event, modelId: string) => {
     const res = await fetch(`${sidecar.baseUrl}/models/download/progress/${modelId}`)
     return res.json()
@@ -152,8 +157,6 @@ async function setupIPC() {
     const res = await fetch(`${sidecar.baseUrl}/conversations/${id}`, { method: 'DELETE' })
     return res.json()
   })
-
-  sidecar.onLog((e) => mainWindow?.webContents.send('sidecar:log', e))
 }
 
 app.whenReady().then(async () => {
@@ -166,6 +169,16 @@ app.whenReady().then(async () => {
 
   await setupIPC()
   await createWindow()
+
+  sidecar.onLog((e) => {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('sidecar:log', e)
+      }
+    } catch {
+      // render frame may be disposed during GPU restart; ignore
+    }
+  })
 })
 
 app.on('window-all-closed', () => {

@@ -72,6 +72,7 @@ declare global {
       getLocalModels: () => Promise<{ models: LocalModel[] }>
       downloadModel: (modelId: string) => Promise<DownloadState>
       getDownloadProgress: (modelId: string) => Promise<DownloadState>
+      deleteLocalModel: (modelId: string) => Promise<{ status: string }>
       listConversations: () => Promise<{ conversations: ConversationMeta[] }>
       getConversation: (id: string) => Promise<Conversation>
       saveConversation: (
