@@ -37,3 +37,13 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes messageDot {
+    0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-4px); }
+  }
+  .animate-messageDot {
+    animation: messageDot 1.4s ease-in-out infinite;
+  }
+}
