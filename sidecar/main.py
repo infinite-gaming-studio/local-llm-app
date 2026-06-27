@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from model_manager import ModelManager, get_available_models, get_local_models, start_download, get_download_progress
 from engine import SkillEngine
+from conversations import ConversationStore
 
 
 class ChatRequest(BaseModel):
@@ -23,11 +24,22 @@ class ModelLoadRequest(BaseModel):
     gpu_layers: int = -1
 
 
+class ConversationBody(BaseModel):
+    id: str | None = None
+    title: str | None = None
+    messages: list[dict] = []
+
+
+class RenameBody(BaseModel):
+    title: str
+
+
 app_state = {
     "model": None,
     "model_loaded": False,
     "agent": None,
     "skill_engine": None,
+    "conversations": None,
 }
 
 
@@ -35,6 +47,7 @@ app_state = {
 async def lifespan(app: FastAPI):
     print("SIDECAR_READY", flush=True)
     app_state["skill_engine"] = SkillEngine()
+    app_state["conversations"] = ConversationStore()
     yield
     if app_state["model"] is not None:
         app_state["model"].unload()
@@ -120,6 +133,49 @@ async def list_skills():
     if app_state["skill_engine"] is None:
         return {"skills": []}
     return {"skills": app_state["skill_engine"].get_skills_list()}
+
+
+# ── Conversations ──────────────────────────────────────────────────
+
+
+@app.get("/conversations")
+async def list_conversations():
+    return {"conversations": app_state["conversations"].list_conversations()}
+
+
+@app.get("/conversations/{cid}")
+async def get_conversation(cid: str):
+    c = app_state["conversations"].get(cid)
+    if c is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return c
+
+
+@app.post("/conversations")
+async def create_conversation(req: ConversationBody):
+    cid = app_state["conversations"].save(req.model_dump())
+    return {"id": cid}
+
+
+@app.put("/conversations/{cid}")
+async def update_conversation(cid: str, req: ConversationBody):
+    body = req.model_dump(); body["id"] = cid
+    app_state["conversations"].save(body)
+    return {"id": cid}
+
+
+@app.patch("/conversations/{cid}")
+async def rename_conversation(cid: str, req: RenameBody):
+    c = app_state["conversations"].rename(cid, req.title)
+    if c is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return {"status": "ok"}
+
+
+@app.delete("/conversations/{cid}")
+async def delete_conversation(cid: str):
+    app_state["conversations"].delete(cid)
+    return {"status": "ok"}
 
 
 # ── Model marketplace ──────────────────────────────────────────────
