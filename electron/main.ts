@@ -3,7 +3,8 @@ import path from 'path'
 import { SidecarManager } from './sidecar'
 import { ScreenCapture } from './screen-capture'
 
-app.disableHardwareAcceleration()
+app.commandLine.appendSwitch('disable-gpu')
+app.commandLine.appendSwitch('disable-software-rasterizer')
 
 let mainWindow: BrowserWindow | null = null
 const sidecar = new SidecarManager()
