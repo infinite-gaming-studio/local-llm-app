@@ -6,9 +6,13 @@ import { Settings } from './pages/Settings'
 import { Skills } from './pages/Skills'
 import { ThemeToggle } from './components/ThemeToggle'
 import { getTheme, setTheme } from './lib/theme'
+import { useModelDownloads } from './store/useModelDownloads'
 
 export default function App() {
-  useEffect(() => { setTheme(getTheme()) }, [])
+  useEffect(() => {
+    setTheme(getTheme())
+    useModelDownloads.getState().restore()
+  }, [])
 
   const navItem = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors ${

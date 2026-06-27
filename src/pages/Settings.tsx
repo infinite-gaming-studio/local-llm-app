@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
-import { api, AvailableModel, LocalModel, DownloadState } from '../api'
+import { useState, useEffect } from 'react'
+import { api, AvailableModel, LocalModel } from '../api'
+import { useModelDownloads } from '../store/useModelDownloads'
 
 const MB = 1024 * 1024
 const GB = 1024 * MB
@@ -10,10 +11,9 @@ export function Settings() {
   const [modelStatus, setModelStatus] = useState<{ loaded: boolean; path?: string }>({ loaded: false })
   const [models, setModels] = useState<AvailableModel[]>([])
   const [localModels, setLocalModels] = useState<LocalModel[]>([])
-  const [downloads, setDownloads] = useState<Record<string, DownloadState>>({})
   const [loading, setLoading] = useState(true)
   const [operating, setOperating] = useState<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const { downloads, startDownload, clearError } = useModelDownloads()
 
   const loadData = async () => {
     try {
@@ -22,28 +22,8 @@ export function Settings() {
     } catch (e) { console.error(e) }
     setLoading(false)
   }
-  useEffect(() => { loadData(); const t = setTimeout(() => setLoading(false), 15000); return () => { clearTimeout(t); if (pollRef.current) clearInterval(pollRef.current) } }, [])
+  useEffect(() => { loadData(); const t = setTimeout(() => setLoading(false), 15000); return () => clearTimeout(t) }, [])
 
-  const active = Object.entries(downloads).filter(([, s]) => s.status === 'downloading')
-  useEffect(() => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
-    if (active.length === 0) return
-    pollRef.current = setInterval(async () => {
-      for (const [id] of active) {
-        try {
-          const st = await api.getDownloadProgress(id)
-          setDownloads((p) => ({ ...p, [id]: st }))
-          if (st.status === 'completed' || st.status === 'error') loadData()
-        } catch (e) { console.error(e) }
-      }
-    }, 1500)
-  }, [active.length])
-
-  const handleDownload = async (id: string) => {
-    setDownloads((p) => ({ ...p, [id]: { status: 'downloading', progress: 0 } }))
-    try { const r = await api.downloadModel(id); if (r.status === 'error') setDownloads((p) => ({ ...p, [id]: r })) }
-    catch (e) { setDownloads((p) => ({ ...p, [id]: { status: 'error', progress: 0, error: String(e) } })) }
-  }
   const handleLoad = async (path: string) => { setOperating(path); try { await api.loadModel(path); setModelStatus(await api.getModelStatus()) } catch (e) { console.error(e) }; setOperating(null) }
   const handleUnload = async () => { setOperating('unload'); try { await api.unloadModel(); setModelStatus({ loaded: false }) } catch (e) { console.error(e) }; setOperating(null) }
 
@@ -95,7 +75,12 @@ export function Settings() {
                     </div>
                   </div>
                 )}
-                {dl?.status === 'error' && <div className="text-[12px] text-red-500">下载失败: {dl.error}</div>}
+                {dl?.status === 'error' && (
+                  <div className="text-[12px] text-red-500 flex items-start justify-between gap-2">
+                    <span>下载失败: {dl.error}</span>
+                    <button onClick={() => clearError(m.id)} className="shrink-0 underline hover:opacity-70">忽略</button>
+                  </div>
+                )}
                 <div className="mt-auto">
                   {isDone ? (
                     <button onClick={() => handleLoad(m.local_path || dl?.path || m.id)} disabled={isOp}
@@ -105,7 +90,7 @@ export function Settings() {
                   ) : isDl ? (
                     <div className="w-full py-2 text-center rounded-lg bg-[--color-surface-2] text-[13px] text-[--color-text-muted]">下载中…</div>
                   ) : (
-                    <button onClick={() => handleDownload(m.id)} disabled={isOp}
+                    <button onClick={() => startDownload(m.id)} disabled={isOp}
                       className="w-full py-2 rounded-lg bg-[--color-accent] text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity">
                       {isOp ? '准备中…' : '下载'}
                     </button>
