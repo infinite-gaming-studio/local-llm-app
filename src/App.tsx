@@ -7,11 +7,16 @@ import { Skills } from './pages/Skills'
 import { ThemeToggle } from './components/ThemeToggle'
 import { getTheme, setTheme } from './lib/theme'
 import { useModelDownloads } from './store/useModelDownloads'
+import { useLogs } from './store/useLogs'
 
 export default function App() {
   useEffect(() => {
     setTheme(getTheme())
     useModelDownloads.getState().restore()
+    const unsubscribeLogs = useLogs.getState().init()
+    return () => {
+      unsubscribeLogs()
+    }
   }, [])
 
   const navItem = ({ isActive }: { isActive: boolean }) =>
