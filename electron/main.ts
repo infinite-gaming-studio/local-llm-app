@@ -105,8 +105,7 @@ async function setupIPC() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages, stream: true }),
       })
-
-      if (!res.body) {
+if (!res.body) {
         mainWindow?.webContents.send('chat:done', '')
         return
       }

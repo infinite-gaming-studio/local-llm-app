@@ -50,6 +50,20 @@ class AgentOrchestrator:
             prompt += f"\n\n当前 Skill 指令:\n{skill_context}"
         return prompt
 
+    def _detect_tool_call(self, text: str) -> dict | None:
+        m = re.search(r'\{"tool":\s*"[^"]+"', text)
+        if not m:
+            return None
+        try:
+            start = m.start()
+            end = text.index("}", start) + 1
+            tc = json.loads(text[start:end])
+            if "tool" in tc and "args" in tc:
+                return tc
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return None
+
     def run(self, messages: list[dict], stream: bool = False):
         skill_context = ""
         if self.skill_engine:
@@ -62,31 +76,19 @@ class AgentOrchestrator:
         for _ in range(self.max_tool_rounds):
             result = self.model.chat(full_messages)
 
-            json_match = re.search(r'\{"tool":\s*"[^"]+"', result)
-            if json_match:
-                try:
-                    start = json_match.start()
-                    end = result.index("}", start) + 1
-                    tool_call = json.loads(result[start:end])
-                    if "tool" in tool_call and "args" in tool_call:
-                        tool_result = execute_tool(tool_call["tool"], tool_call["args"])
-                        full_messages.append({"role": "assistant", "content": result})
-                        full_messages.append({
-                            "role": "tool",
-                            "content": str(tool_result),
-                        })
-                        continue
-                except (json.JSONDecodeError, ValueError) as e:
-                    full_messages.append({
-                        "role": "assistant",
-                        "content": result,
-                    })
-                    return result
+            tool_call = self._detect_tool_call(result)
+            if tool_call:
+                full_messages.append({"role": "assistant", "content": result})
+                full_messages.append({
+                    "role": "tool",
+                    "content": str(execute_tool(tool_call["tool"], tool_call["args"])),
+                })
+                continue
 
             return result
         return "已到达工具调用上限，请简化请求。"
 
-    async def run_stream(self, messages: list[dict]) -> AsyncGenerator[dict, None]:
+async def run_stream(self, messages: list[dict]) -> AsyncGenerator[dict, None]:
         """流式运行 agent，逐 token 产出事件。
 
         事件类型:
