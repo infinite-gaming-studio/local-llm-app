@@ -1,60 +1,76 @@
 import { create } from 'zustand'
-import { api, ConversationMeta } from '../api'
-
-export interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  images?: string[]
-}
+import { api, ConversationMeta, Conversation } from '../api'
 
 interface ConvStore {
-  list: ConversationMeta[]
-  currentId: string | null
-  messages: Message[]
+  conversations: ConversationMeta[]
+  activeId: string | null
+  activeConv: Conversation | null
+  loading: boolean
   streaming: boolean
-  loadList: () => Promise<void>
-  select: (id: string) => Promise<void>
-  newChat: () => void
+  streamingContent: string
+  init: () => Promise<void>
+  createConversation: () => Promise<string>
+  selectConversation: (id: string) => Promise<void>
+  deleteConversation: (id: string) => Promise<void>
+  renameConversation: (id: string, title: string) => Promise<void>
   send: (text: string, images?: string[]) => Promise<void>
   stop: () => void
-  remove: (id: string) => Promise<void>
-  rename: (id: string, title: string) => Promise<void>
 }
 
 let cleanupStream: (() => void) | null = null
 
 export const useConversations = create<ConvStore>((set, get) => ({
-  list: [],
-  currentId: null,
-  messages: [],
+  conversations: [],
+  activeId: null,
+  activeConv: null,
+  loading: false,
   streaming: false,
+  streamingContent: '',
 
-  loadList: async () => {
+  init: async () => {
+    set({ loading: true })
     const d = await api.listConversations()
-    set({ list: d.conversations })
+    set({ conversations: d.conversations, loading: false })
   },
 
-  select: async (id) => {
+  createConversation: async () => {
     if (get().streaming) get().stop()
+    const saved = await api.saveConversation({ title: '新对话', messages: [] })
+    set({ activeId: saved.id })
+    await get().init()
+    return saved.id
+  },
+
+  selectConversation: async (id) => {
+    if (get().streaming) get().stop()
+    set({ loading: true })
     const c = await api.getConversation(id)
-    set({ currentId: id, messages: c.messages.map((m, i) => ({ id: `${id}-${i}`, ...m })) })
+    set({ activeId: id, activeConv: c, streamingContent: '', loading: false })
   },
 
-  newChat: () => {
-    if (get().streaming) get().stop()
-    set({ currentId: null, messages: [] })
+  deleteConversation: async (id) => {
+    await api.deleteConversation(id)
+    if (get().activeId === id) set({ activeId: null, activeConv: null, streamingContent: '' })
+    await get().init()
+  },
+
+  renameConversation: async (id, title) => {
+    await api.renameConversation(id, title)
+    const c = get().activeConv
+    if (c && c.id === id) set({ activeConv: { ...c, title } })
+    await get().init()
   },
 
   send: async (text, images) => {
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text, images }
-    const assistantId = (Date.now() + 1).toString()
-    const base = get().messages
-    const next = [...base, userMsg, { id: assistantId, role: 'assistant' as const, content: '' }]
-    set({ messages: next, streaming: true })
-
-    const cid = get().currentId
+    const base = get().activeConv?.messages ?? []
+    const userMsg = { role: 'user' as const, content: text, images }
+    const cid = get().activeId
     const title = text.slice(0, 40) || '新对话'
+    set({
+      activeConv: { id: cid ?? '', title, messages: [...base, userMsg, { role: 'assistant', content: '' }], created_at: Date.now(), updated_at: Date.now() },
+      streaming: true,
+      streamingContent: '',
+    })
 
     const chatMessages = [...base, userMsg].map((m) => ({
       role: m.role,
@@ -68,21 +84,24 @@ export const useConversations = create<ConvStore>((set, get) => ({
 
     cleanupStream = api.chatStream(
       chatMessages,
-      (token) =>
+      (token) => {
         set((s) => ({
-          messages: s.messages.map((m) =>
-            m.id === assistantId ? { ...m, content: m.content + token } : m
-          ),
-        })),
+          streamingContent: s.streamingContent + token,
+        }))
+      },
       async () => {
-        set({ streaming: false })
+        const content = get().streamingContent
+        const conv = get().activeConv
+        const msgs = conv?.messages ?? []
+        msgs[msgs.length - 1] = { role: 'assistant', content }
         const saved = await api.saveConversation({
           id: cid ?? undefined,
           title,
-          messages: get().messages.map(({ role, content, images }) => ({ role, content, images })),
+          messages: msgs,
         })
-        if (!get().currentId) set({ currentId: saved.id })
-        get().loadList()
+        set({ streaming: false, streamingContent: '', activeConv: { ...conv!, messages: msgs, id: saved.id } })
+        if (!get().activeId) set({ activeId: saved.id })
+        await get().init()
       },
     )
   },
@@ -90,17 +109,13 @@ export const useConversations = create<ConvStore>((set, get) => ({
   stop: () => {
     cleanupStream?.()
     cleanupStream = null
-    set({ streaming: false })
-  },
-
-  remove: async (id) => {
-    await api.deleteConversation(id)
-    if (get().currentId === id) get().newChat()
-    await get().loadList()
-  },
-
-  rename: async (id, title) => {
-    await api.renameConversation(id, title)
-    await get().loadList()
+    const content = get().streamingContent
+    if (content) {
+      const conv = get().activeConv
+      const msgs = conv?.messages ?? []
+      msgs[msgs.length - 1] = { role: 'assistant', content }
+      set({ activeConv: conv ? { ...conv, messages: msgs } : null })
+    }
+    set({ streaming: false, streamingContent: '' })
   },
 }))
