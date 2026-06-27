@@ -119,6 +119,8 @@ async function setupIPC() {
     const res = await fetch(`${sidecar.baseUrl}/models/download/progress/${modelId}`)
     return res.json()
   })
+
+  sidecar.onLog((e) => mainWindow?.webContents.send('sidecar:log', e))
 }
 
 app.whenReady().then(async () => {

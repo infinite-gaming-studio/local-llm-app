@@ -27,6 +27,11 @@ const api = {
   getLocalModels: () => ipcRenderer.invoke('models:local'),
   downloadModel: (modelId: string) => ipcRenderer.invoke('models:download', modelId),
   getDownloadProgress: (modelId: string) => ipcRenderer.invoke('models:download-progress', modelId),
+  onLog: (cb: (e: { stream: 'stdout' | 'stderr'; line: string; ts: number }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, e: { stream: 'stdout' | 'stderr'; line: string; ts: number }) => cb(e)
+    ipcRenderer.on('sidecar:log', handler)
+    return () => ipcRenderer.removeListener('sidecar:log', handler)
+  },
 }
 
 contextBridge.exposeInMainWorld('llmApp', api)

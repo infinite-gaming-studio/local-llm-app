@@ -7,6 +7,32 @@ export class SidecarManager {
   private port: number = 0
   private restartCount = 0
   private maxRestarts = 3
+  private stdoutBuf = ''
+  private stderrBuf = ''
+  private logListeners = new Set<(e: { stream: 'stdout' | 'stderr'; line: string; ts: number }) => void>()
+
+  onLog(cb: (e: { stream: 'stdout' | 'stderr'; line: string; ts: number }) => void) {
+    this.logListeners.add(cb)
+    return () => this.logListeners.delete(cb)
+  }
+
+  private emitLog(stream: 'stdout' | 'stderr', line: string) {
+    const e = { stream, line, ts: Date.now() }
+    this.logListeners.forEach((cb) => cb(e))
+  }
+
+  private bufferLine(stream: 'stdout' | 'stderr', chunk: string) {
+    const buf = stream === 'stdout' ? this.stdoutBuf : this.stderrBuf
+    const next = buf + chunk
+    const lines = next.split('\n')
+    const last = lines.pop() ?? ''
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed) this.emitLog(stream, trimmed)
+    }
+    if (stream === 'stdout') this.stdoutBuf = last
+    else this.stderrBuf = last
+  }
 
   get baseUrl(): string {
     return `http://127.0.0.1:${this.port}`
@@ -30,12 +56,11 @@ export class SidecarManager {
     })
 
     this.process.stdout?.on('data', (data: Buffer) => {
-      const line = data.toString().trim()
-      console.log('[sidecar]', line)
+      this.bufferLine('stdout', data.toString())
     })
 
     this.process.stderr?.on('data', (data: Buffer) => {
-      console.error('[sidecar:err]', data.toString().trim())
+      this.bufferLine('stderr', data.toString())
     })
 
     this.process.on('exit', (code) => {

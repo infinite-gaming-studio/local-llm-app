@@ -27,6 +27,12 @@ export interface LocalModel {
   size_bytes: number
 }
 
+export interface LogEntry {
+  stream: 'stdout' | 'stderr'
+  line: string
+  ts: number
+}
+
 declare global {
   interface Window {
     llmApp: {
@@ -48,6 +54,7 @@ declare global {
       getLocalModels: () => Promise<{ models: LocalModel[] }>
       downloadModel: (modelId: string) => Promise<DownloadState>
       getDownloadProgress: (modelId: string) => Promise<DownloadState>
+      onLog: (cb: (e: LogEntry) => void) => () => void
     }
   }
 }
