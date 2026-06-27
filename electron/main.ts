@@ -120,6 +120,39 @@ async function setupIPC() {
     return res.json()
   })
 
+  ipcMain.handle('conversations:list', async () => {
+    const res = await fetch(`${sidecar.baseUrl}/conversations`)
+    return res.json()
+  })
+
+  ipcMain.handle('conversations:get', async (_event, id: string) => {
+    const res = await fetch(`${sidecar.baseUrl}/conversations/${id}`)
+    return res.json()
+  })
+
+  ipcMain.handle('conversations:save', async (_event, conv: unknown) => {
+    const res = await fetch(`${sidecar.baseUrl}/conversations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(conv),
+    })
+    return res.json()
+  })
+
+  ipcMain.handle('conversations:rename', async (_event, id: string, title: string) => {
+    const res = await fetch(`${sidecar.baseUrl}/conversations/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    })
+    return res.json()
+  })
+
+  ipcMain.handle('conversations:delete', async (_event, id: string) => {
+    const res = await fetch(`${sidecar.baseUrl}/conversations/${id}`, { method: 'DELETE' })
+    return res.json()
+  })
+
   sidecar.onLog((e) => mainWindow?.webContents.send('sidecar:log', e))
 }
 

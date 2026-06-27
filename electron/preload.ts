@@ -27,6 +27,11 @@ const api = {
   getLocalModels: () => ipcRenderer.invoke('models:local'),
   downloadModel: (modelId: string) => ipcRenderer.invoke('models:download', modelId),
   getDownloadProgress: (modelId: string) => ipcRenderer.invoke('models:download-progress', modelId),
+  listConversations: () => ipcRenderer.invoke('conversations:list'),
+  getConversation: (id: string) => ipcRenderer.invoke('conversations:get', id),
+  saveConversation: (conv: unknown) => ipcRenderer.invoke('conversations:save', conv),
+  renameConversation: (id: string, title: string) => ipcRenderer.invoke('conversations:rename', id, title),
+  deleteConversation: (id: string) => ipcRenderer.invoke('conversations:delete', id),
   onLog: (cb: (e: { stream: 'stdout' | 'stderr'; line: string; ts: number }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, e: { stream: 'stdout' | 'stderr'; line: string; ts: number }) => cb(e)
     ipcRenderer.on('sidecar:log', handler)

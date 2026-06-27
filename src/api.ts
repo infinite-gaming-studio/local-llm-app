@@ -27,6 +27,21 @@ export interface LocalModel {
   size_bytes: number
 }
 
+export interface Conversation {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ConversationDetail {
+  id: string
+  title: string
+  messages: unknown[]
+  created_at: string
+  updated_at: string
+}
+
 export interface LogEntry {
   stream: 'stdout' | 'stderr'
   line: string
@@ -54,6 +69,11 @@ declare global {
       getLocalModels: () => Promise<{ models: LocalModel[] }>
       downloadModel: (modelId: string) => Promise<DownloadState>
       getDownloadProgress: (modelId: string) => Promise<DownloadState>
+      listConversations: () => Promise<{ conversations: Conversation[] }>
+      getConversation: (id: string) => Promise<ConversationDetail>
+      saveConversation: (conv: unknown) => Promise<ConversationDetail>
+      renameConversation: (id: string, title: string) => Promise<ConversationDetail>
+      deleteConversation: (id: string) => Promise<{ status: string }>
       onLog: (cb: (e: LogEntry) => void) => () => void
     }
   }
