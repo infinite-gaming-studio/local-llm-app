@@ -8,22 +8,31 @@ import { ConfirmDialog } from './ConfirmDialog'
 
 const DAY = 86400000
 
+function getEpochDay(ts: number) {
+  return Math.floor(ts / DAY)
+}
+
 function group(list: { id: string; title: string; updated_at: number }[]) {
-  const now = Date.now()
-  const today: any[] = []; const week: any[] = []; const older: any[] = []
+  const todayEpoch = getEpochDay(Date.now())
+  const yesterdayEpoch = todayEpoch - 1
+  const dayOfWeek = new Date().getDay()
+  const daysSinceMonday = (dayOfWeek + 6) % 7
+  const mondayEpoch = todayEpoch - daysSinceMonday
+  const todayBucket: any[] = []; const yesterdayBucket: any[] = []; const weekBucket: any[] = []; const olderBucket: any[] = []
   for (const c of list) {
-    const age = now - c.updated_at
-    if (age < DAY) today.push(c)
-    else if (age < 7 * DAY) week.push(c)
-    else older.push(c)
+    const e = getEpochDay(c.updated_at)
+    if (e === todayEpoch) todayBucket.push(c)
+    else if (e === yesterdayEpoch) yesterdayBucket.push(c)
+    else if (e >= mondayEpoch) weekBucket.push(c)
+    else olderBucket.push(c)
   }
-  return { today, week, older }
+  return { today: todayBucket, yesterday: yesterdayBucket, week: weekBucket, older: olderBucket }
 }
 
 export function Sidebar() {
   const { conversations, init, selectConversation, deleteConversation, renameConversation, activeId, createConversation } = useConversations()
   const { downloads } = useModelDownloads()
-  const activeDownloads = Object.values(downloads).filter((d) => d.status === 'downloading')
+  const activeDownloadList = Object.values(downloads).filter((d) => d.status === 'downloading')
   const [query, setQuery] = useState('')
   const [renaming, setRenaming] = useState<string | null>(null)
   const [renameVal, setRenameVal] = useState('')
@@ -41,13 +50,13 @@ export function Sidebar() {
   }, [])
 
   const filtered = conversations.filter((c) => c.title.toLowerCase().includes(query.toLowerCase()))
-  const { today, week, older } = group(filtered)
+  const { today, yesterday, week, older } = group(filtered)
 
   const navItem = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors ${isActive ? 'bg-[--color-surface-2] text-[--color-text] font-medium' : 'text-[--color-text-muted] hover:text-[--color-text] hover:bg-[--color-surface-2]/60'}`
 
   const Row = (c: { id: string; title: string }) => (
-    <div key={c.id} className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer ${activeId === c.id ? 'bg-[--color-surface-2] text-[--color-text]' : 'text-[--color-text-muted] hover:bg-[--color-surface-2]/60'}`}
+    <div key={c.id} className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer ${activeId === c.id ? 'bg-[--color-accent-soft] text-[--color-text]' : 'text-[--color-text-muted] hover:bg-[--color-surface-2]/60'}`}
       onClick={() => { selectConversation(c.id); nav('/') }}>
       {renaming === c.id ? (
         <input autoFocus value={renameVal} onChange={(e) => setRenameVal(e.target.value)}
@@ -73,7 +82,7 @@ export function Sidebar() {
   ) : null
 
   return (
-    <nav className="w-[260px] shrink-0 border-r border-[--color-border] bg-[--color-surface] flex flex-col">
+    <nav className="w-72 shrink-0 border-r border-[--color-border] bg-[--color-surface] flex flex-col">
       <div className="p-3">
         <button onClick={() => { createConversation(); nav('/') }}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-[--color-border] text-[13px] text-[--color-text] hover:bg-[--color-accent-soft] hover:border-[--color-accent]/40 transition-colors">
@@ -89,17 +98,27 @@ export function Sidebar() {
       </div>
       <div className="flex-1 overflow-auto px-2">
         <Section label="今天" items={today} />
-        <Section label="过去 7 天" items={week} />
+        <Section label="昨天" items={yesterday} />
+        <Section label="本周" items={week} />
         <Section label="更早" items={older} />
       </div>
       <div className="p-3 border-t border-[--color-border] flex flex-col gap-1">
         <NavLink to="/" end className={navItem}><ChatCircle size={18} /> 对话</NavLink>
-        <NavLink to="/skills" className={navItem}><PuzzlePiece size={18} /> Skills</NavLink>
+        <NavLink to="/skills" className={navItem}><PuzzlePiece size={18} /> 训练技能</NavLink>
         <NavLink to="/settings" className={navItem}><Gear size={18} /> 设置</NavLink>
-        {activeDownloads.length > 0 && (
-          <NavLink to="/settings" className={navItem}>
-            <ArrowsClockwise size={18} className={motionOk ? 'animate-spin' : ''} /> 下载中 {activeDownloads.length}
-          </NavLink>
+        {activeDownloadList.length > 0 && (
+          <div className="flex flex-col gap-0.5">
+            <NavLink to="/settings" className={navItem}>
+              <ArrowsClockwise size={18} className={motionOk ? 'animate-spin' : ''} /> 下载中 {activeDownloadList.length}
+            </NavLink>
+            <div className="px-3 pb-1 space-y-0.5">
+              {activeDownloadList.map((d, i) => (
+                <div key={i} className="h-1 rounded-full bg-[--color-border] overflow-hidden">
+                  <div className="h-full bg-[--color-accent] rounded-full transition-[width] duration-300" style={{ width: `${Math.round((d.progress || 0) * 100)}%` }} />
+                </div>
+              ))}
+            </div>
+          </div>
         )}
         <div className="pt-2 mt-1 border-t border-[--color-border]"><ThemeToggle /></div>
       </div>
