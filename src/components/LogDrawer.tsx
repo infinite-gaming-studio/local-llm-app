@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Terminal, Trash, CaretUp, CaretDown } from '@phosphor-icons/react'
 import { useLogs } from '../store/useLogs'
 
+const ERROR_RE = /error|traceback/i
+
 export function LogDrawer() {
   const entries = useLogs((s) => s.entries)
   const clear = useLogs((s) => s.clear)
@@ -30,7 +32,7 @@ export function LogDrawer() {
 
   return (
     <div className="shrink-0 border-t border-[--color-border]" style={open ? { height } : {}}>
-      {open && <div className="h-1 cursor-row-resize bg-transparent" onMouseDown={() => { draggingRef.current = true }} />}
+      {open && <div className="h-1 cursor-row-resize bg-transparent" onMouseDown={(e) => { e.preventDefault(); draggingRef.current = true }} />}
       <div className="flex items-center gap-2 px-4 h-7 text-[12px]">
         <Terminal size={14} className="text-[--color-text-muted]" />
         <span className="text-[--color-text-muted]">后端日志</span>
@@ -45,11 +47,11 @@ export function LogDrawer() {
         <div ref={scrollRef} onScroll={(e) => {
           const el = e.currentTarget; const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20
           setFollow(atBottom)
-        }} className="overflow-auto px-4 py-1 font-mono text-[12px] leading-relaxed h-[calc(100%-28px)]">
-          {entries.length === 0 ? <div className="text-[--color-text-muted] py-4">暂无日志,sidecar 启动后此处显示模型调用输出</div> :
+        }} className="overflow-auto px-4 py-1 font-mono text-[12px] leading-relaxed h-[calc(100%-32px)]">
+          {entries.length === 0 ? <div className="text-[--color-text-muted] py-4">暂无日志，sidecar 启动后此处显示模型调用输出</div> :
             entries.map((e, i) => {
               const t = new Date(e.ts); const ts = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}:${String(t.getSeconds()).padStart(2, '0')}`
-              const err = e.stream === 'stderr' || /error|traceback/i.test(e.line)
+              const err = e.stream === 'stderr' || ERROR_RE.test(e.line)
               return <div key={i} className={err ? 'text-[--color-accent]' : 'text-[--color-text-muted]'}><span className="opacity-60">{ts}</span> {e.line}</div>
             })}
           {!follow && <button onClick={() => setFollow(true)} className="sticky bottom-2 ml-auto block px-2 py-1 rounded bg-[--color-surface-2] text-[--color-text]">↓ 跟随最新</button>}
