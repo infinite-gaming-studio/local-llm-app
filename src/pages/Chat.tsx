@@ -1,4 +1,3 @@
-import { TopBar } from '../components/TopBar'
 import { Composer } from '../components/Composer'
 import { Message } from '../components/Message'
 import { MessageStream } from '../components/MessageStream'
@@ -12,7 +11,6 @@ export function Chat() {
 
   return (
     <div className="flex flex-col h-full">
-      <TopBar onToggleSidebar={() => {}} />
       <div className="flex-1 overflow-auto">
         <div className="max-w-3xl mx-auto px-6 py-8 flex flex-col gap-6">
           {messages.length === 0 && !streaming ? (
