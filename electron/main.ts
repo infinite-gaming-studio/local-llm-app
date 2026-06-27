@@ -3,6 +3,8 @@ import path from 'path'
 import { SidecarManager } from './sidecar'
 import { ScreenCapture } from './screen-capture'
 
+app.disableHardwareAcceleration()
+
 let mainWindow: BrowserWindow | null = null
 const sidecar = new SidecarManager()
 const screenCapture = new ScreenCapture()
