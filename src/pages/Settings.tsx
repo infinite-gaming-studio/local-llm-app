@@ -10,7 +10,7 @@ const GB = 1024 * MB
 function formatSize(b: number) { return b >= GB ? `${(b / GB).toFixed(1)} GB` : b >= MB ? `${Math.round(b / MB)} MB` : `${b} B` }
 
 export function Settings() {
-  const [modelStatus, setModelStatus] = useState<{ loaded: boolean; path?: string }>({ loaded: false })
+  const [modelStatus, setModelStatus] = useState<{ loaded: boolean; path?: string; ctx_size?: number; gpu_layers?: number }>({ loaded: false })
   const [models, setModels] = useState<AvailableModel[]>([])
   const [localModels, setLocalModels] = useState<LocalModel[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,6 +25,14 @@ export function Settings() {
   const [diag, setDiag] = useState<SidecarDiagnostics | null>(null)
   const [hfToken, setHfToken] = useState(() => localStorage.getItem('llm-app:hf-token') || '')
   const [hfTokenSaved, setHfTokenSaved] = useState(false)
+  const [defaultCtxSize, setDefaultCtxSize] = useState(() => {
+    const v = localStorage.getItem('llm-app:default-ctx-size')
+    return v ? parseInt(v, 10) : 32768
+  })
+  const [defaultGpuLayers, setDefaultGpuLayers] = useState(() => {
+    const v = localStorage.getItem('llm-app:default-gpu-layers')
+    return v ? parseInt(v, 10) : -1
+  })
 
   const saveHfToken = async () => {
     localStorage.setItem('llm-app:hf-token', hfToken)
@@ -69,7 +77,11 @@ export function Settings() {
   const handleLoad = async (path: string, options?: { ctx_size?: number; gpu_layers?: number }) => {
     setOperating(path)
     try {
-      const result = await api.loadModel(path, options)
+      const merged = {
+        ctx_size: options?.ctx_size ?? defaultCtxSize,
+        gpu_layers: options?.gpu_layers ?? defaultGpuLayers,
+      }
+      const result = await api.loadModel(path, merged)
       if (result.status === 'error') {
         setError(result.error || '模型加载失败')
       } else {
@@ -197,10 +209,18 @@ export function Settings() {
         <span className="text-[14px] font-medium">{modelStatus.loaded ? '模型已加载' : '模型未加载'}</span>
         {modelStatus.path && <span className="text-[12px] text-[var(--color-text-muted)] flex-1 truncate">{modelStatus.path}</span>}
         {modelStatus.loaded && (
-          <button onClick={handleUnload} disabled={operating === 'unload'}
-            className="px-4 py-1.5 rounded-lg bg-red-500 text-white text-[13px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity">
-            {operating === 'unload' ? '卸载中…' : '卸载模型'}
-          </button>
+          <>
+            <span className="text-[11px] text-[var(--color-text-muted)] shrink-0">
+              上下文 {modelStatus.ctx_size ? (modelStatus.ctx_size >= 1024 ? `${modelStatus.ctx_size / 1024}K` : modelStatus.ctx_size) : '?'}
+            </span>
+            <span className="text-[11px] text-[var(--color-text-muted)] shrink-0">
+              GPU {modelStatus.gpu_layers === -1 ? '全部' : modelStatus.gpu_layers === 0 ? '关闭' : modelStatus.gpu_layers}
+            </span>
+            <button onClick={handleUnload} disabled={operating === 'unload'}
+              className="px-4 py-1.5 rounded-lg bg-red-500 text-white text-[13px] font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity">
+              {operating === 'unload' ? '卸载中…' : '卸载模型'}
+            </button>
+          </>
         )}
       </div>
 
@@ -216,6 +236,37 @@ export function Settings() {
             {hfTokenSaved ? '已保存' : '保存'}
           </button>
         </div>
+      </details>
+
+      <details className="mb-5">
+        <summary className="cursor-pointer text-[14px] text-[var(--color-text-muted)] flex items-center gap-2">
+          <Terminal size={14} /> 默认加载参数
+        </summary>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[12px] text-[var(--color-text-muted)] mb-1">上下文长度 (ctx_size)</label>
+            <input type="number" value={defaultCtxSize}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10) || 32768
+                setDefaultCtxSize(v)
+                localStorage.setItem('llm-app:default-ctx-size', String(v))
+              }}
+              min={512} step={512}
+              className="w-full px-3 py-2.5 rounded-lg border border-[var(--color-border)] bg-transparent text-[14px] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40" />
+          </div>
+          <div>
+            <label className="block text-[12px] text-[var(--color-text-muted)] mb-1">GPU 层数 (gpu_layers)</label>
+            <input type="number" value={defaultGpuLayers}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10) || -1
+                setDefaultGpuLayers(v)
+                localStorage.setItem('llm-app:default-gpu-layers', String(v))
+              }}
+              min={-1}
+              className="w-full px-3 py-2.5 rounded-lg border border-[var(--color-border)] bg-transparent text-[14px] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40" />
+          </div>
+        </div>
+        <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5">推荐模型和自定义路径加载时使用此默认值。本地模型优先使用其 metadata 中的值。</p>
       </details>
 
       <h3 className="text-[17px] font-semibold mb-1">推荐模型</h3>
